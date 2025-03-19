@@ -1,0 +1,96 @@
+# CortexAi Sample Configuration File
+
+# General Settings
+log_level: INFO
+debug: false
+max_concurrent_tasks: 10
+
+# Web API Settings
+web_api_enabled: false
+web_api_port: 8000
+web_api_host: 127.0.0.1
+web_api_auth_enabled: true
+
+# Provider Configurations
+providers:
+  # Mock provider for testing without API keys
+  mock:
+    type: mock
+    timeout: 10
+    max_retries: 2
+
+  # OpenAI provider configuration
+  openai:
+    type: openai
+    api_key: ${OPENAI_API_KEY}  # Will be replaced by environment variable
+    model: gpt-4
+    timeout: 60
+    max_retries: 3
+    additional_params:
+      temperature: 0.7
+      max_tokens: 2000
+
+  # Anthropic provider configuration
+  anthropic:
+    type: anthropic
+    api_key: ${ANTHROPIC_API_KEY}  # Will be replaced by environment variable
+    model: claude-3-opus-20240229
+    timeout: 90
+    max_retries: 3
+    additional_params:
+      temperature: 0.5
+      max_tokens_to_sample: 4000
+
+# Memory Configurations
+memories:
+  default:
+    type: in_memory
+    max_items: 100
+
+  vector:
+    type: vector_db
+    vector_db_url: ${VECTOR_DB_URL}  # Will be replaced by environment variable
+    vector_db_collection: agent_memories
+    additional_params:
+      dimension: 1536
+      metric: cosine
+
+# Tool Configurations
+tools:
+  scraper:
+    name: ScraperTool
+    enabled: true
+    timeout: 30
+    additional_params:
+      user_agent: "CortexAi Bot 1.0"
+      follow_redirects: true
+      max_depth: 2
+  
+  search:
+    name: SearchTool
+    enabled: true
+    timeout: 20
+    additional_params:
+      search_engine: duckduckgo
+
+# Agent Configurations
+agents:
+  basic:
+    name: BasicAgent
+    provider: mock
+    memory: default
+    tools: []
+    execution_timeout: 120
+    max_consecutive_failures: 2
+    verbose: false
+
+  researcher:
+    name: ResearchAgent
+    provider: openai
+    memory: vector
+    tools:
+      - scraper
+      - search
+    execution_timeout: 300
+    max_consecutive_failures: 3
+    verbose: true

@@ -12,6 +12,7 @@ setup(
         "aiohttp>=3.8.0",
         "pydantic>=2.0.0",
         "asyncio>=3.4.3",
+        "python-dotenv>=1.0.0",
     ],
     extras_require={
         "dev": [
