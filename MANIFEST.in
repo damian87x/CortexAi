@@ -1,0 +1,8 @@
+include LICENSE
+include README.md
+include requirements.txt
+include pyproject.toml
+include CortexAi/config/sample_config.yml
+include CortexAi/config/README.md
+recursive-exclude tests *
+recursive-exclude examples *

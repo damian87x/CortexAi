@@ -8,6 +8,8 @@ PYTEST := $(VENV)/bin/pytest
 BLACK := $(VENV)/bin/black
 ISORT := $(VENV)/bin/isort
 MYPY := $(VENV)/bin/mypy
+BUILD := $(VENV)/bin/build
+TWINE := $(VENV)/bin/twine
 
 # Default target
 .PHONY: help
@@ -26,6 +28,10 @@ help:
 	@echo "  config      - Run configuration example"
 	@echo "  tools       - Run tools demonstration"
 	@echo "  basic-tools - Run simplified tools example"
+	@echo "  build       - Build distribution packages"
+	@echo "  clean-dist  - Remove distribution packages"
+	@echo "  test-pypi   - Upload to TestPyPI"
+	@echo "  publish     - Upload to PyPI"
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  CONFIG_USE_DOTENV   - Set to 'false' to disable .env file loading (default: true)"
@@ -44,6 +50,7 @@ install: $(VENV)
 	$(PIP) install -U pip
 	$(PIP) install -e .
 	$(PIP) install -e ".[yaml,dev]"
+	$(PIP) install build twine
 
 # Create virtual environment
 $(VENV):
@@ -62,6 +69,11 @@ clean:
 	find . -type d -name "*.egg" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".mypy_cache" -exec rm -rf {} +
+	
+# Clean distribution packages
+.PHONY: clean-dist
+clean-dist:
+	rm -rf dist/ build/
 
 # Run tests
 .PHONY: test
@@ -98,3 +110,18 @@ tools: $(VENV)
 .PHONY: basic-tools
 basic-tools: $(VENV)
 	$(PYTHON) examples/basic_tools_example.py
+
+# Build package
+.PHONY: build
+build: clean-dist $(VENV)
+	$(BUILD) --sdist --wheel
+
+# Upload to TestPyPI
+.PHONY: test-pypi
+test-pypi: build
+	$(TWINE) upload --repository testpypi dist/*
+
+# Upload to PyPI
+.PHONY: publish
+publish: build
+	$(TWINE) upload dist/*

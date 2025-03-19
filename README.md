@@ -47,7 +47,15 @@ CortexAi/
 ### Installation
 
 ```bash
-# Coming soon: pip installation
+# Install from PyPI
+pip install CortexAi
+```
+
+#### Development Installation
+
+For development or the latest unreleased features:
+
+```bash
 git clone https://github.com/damian87x/CortexAi.git
 cd CortexAi
 pip install -e .

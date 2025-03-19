@@ -7,13 +7,18 @@ with open(os.path.join("CortexAi", "__init__.py"), "r") as f:
             version = line.split("=")[1].strip().strip('"').strip("'")
             break
 
+with open("README.md", "r", encoding="utf-8") as f:
+    long_description = f.read()
+
 setup(
     name="CortexAi",
     version=version,
     description="A modular, scalable framework for building autonomous AI agents",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author="CortexAi Team",
     author_email="your.email@example.com",
-    url="https://github.com/yourusername/CortexAi",
+    url="https://github.com/damian87x/CortexAi",
     packages=find_packages(),
     install_requires=[
         "aiohttp>=3.8.0",
@@ -40,6 +45,14 @@ setup(
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
+        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
+    license="MIT",
+    license_files=("LICENSE",),
+    include_package_data=True,
+    package_data={
+        "CortexAi": ["config/sample_config.yml"],
+    },
     python_requires=">=3.8",
 )
