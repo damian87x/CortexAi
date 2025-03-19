@@ -24,7 +24,6 @@ class AutonomousAgent(BaseAgent):
         planner: Optional[Planner] = None,
         name: str = "AutonomousAgent",
         max_consecutive_failures: int = 3,
-        # TOOD: add to .env
         execution_timeout: int = 300,
         verbose: bool = True
     ):
@@ -68,7 +67,10 @@ class AutonomousAgent(BaseAgent):
         )
 
         try:
-            steps = self.planner.create_plan(user_goal)
+            if hasattr(self.planner.create_plan, '__awaitable__') or hasattr(self.planner.create_plan, '__await__'):
+                steps = await self.planner.create_plan(user_goal)
+            else:
+                steps = self.planner.create_plan(user_goal)
 
             self._log_execution(
                 "plan_created",

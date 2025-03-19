@@ -25,7 +25,7 @@ def load_mock_provider_from_config(config: Config):
     print(f"  - Timeout: {timeout}s")
     print(f"  - Max retries: {max_retries}")
     
-    return MockProvider(
+    return MockProvider(    
         seed=42,
         timeout=timeout,
         max_retries=max_retries
@@ -125,7 +125,26 @@ async def main():
     
     print("\n=== Loading Config from YAML File ===")
     try:
-        yaml_config = Config.from_file(config_dir / "sample_config.yml")
+        sample_config_path = config_dir / "sample_config.yml"
+        print(f"Looking for YAML config at: {sample_config_path}")
+        
+        if not sample_config_path.exists():
+            print(f"Sample config not found at {sample_config_path}, looking for alternatives...")
+            # Try different locations
+            alt_paths = [
+                Path("config/sample_config.yml"),
+                Path("CortexAi/config/sample_config.yml"),
+                Path(__file__).parent.parent / "CortexAi/config/sample_config.yml"
+            ]
+            
+            for alt_path in alt_paths:
+                print(f"Checking {alt_path}...")
+                if alt_path.exists():
+                    sample_config_path = alt_path
+                    print(f"Found config at: {sample_config_path}")
+                    break
+        
+        yaml_config = Config.from_file(sample_config_path)
         print("Configuration loaded from YAML:")
         print(f"  - Log level: {yaml_config.get('log_level')}")
         print(f"  - Available providers: {', '.join(yaml_config.get('providers', {}).keys())}")

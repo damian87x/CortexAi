@@ -198,6 +198,7 @@ class MultiAgentSystem:
 
         print(f"🤖 Coordinator planning task delegation for: {task}")
 
+        # Get the plan from the coordinator
         plan_result = await self.coordinator.run_task(planning_prompt)
         execution_data["coordinator_plan"] = plan_result
 

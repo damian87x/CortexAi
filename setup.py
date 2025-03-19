@@ -1,8 +1,15 @@
 from setuptools import setup, find_packages
+import os
+
+with open(os.path.join("CortexAi", "__init__.py"), "r") as f:
+    for line in f:
+        if line.startswith("__version__"):
+            version = line.split("=")[1].strip().strip('"').strip("'")
+            break
 
 setup(
     name="CortexAi",
-    version="0.1.0",
+    version=version,
     description="A modular, scalable framework for building autonomous AI agents",
     author="CortexAi Team",
     author_email="your.email@example.com",
@@ -14,7 +21,9 @@ setup(
         "asyncio>=3.4.3",
         "python-dotenv>=1.0.0",
     ],
+    # Optional dependencies
     extras_require={
+        "yaml": ["PyYAML>=6.0"],
         "dev": [
             "pytest>=7.0.0",
             "pytest-asyncio>=0.18.0",

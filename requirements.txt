@@ -1,0 +1,14 @@
+# Core dependencies
+aiohttp>=3.8.0
+pydantic>=2.0.0
+asyncio>=3.4.3
+python-dotenv>=1.0.0
+
+# Optional dependencies for config module
+PyYAML>=6.0  # For YAML configuration files
+
+# Development dependencies
+pytest>=7.0.0
+black>=22.0.0
+mypy>=0.950
+isort>=5.10.0

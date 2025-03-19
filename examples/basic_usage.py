@@ -4,6 +4,12 @@ from CortexAi.agent.core.base_agent import BaseAgent
 from CortexAi.agent.autonomous_agent import AutonomousAgent
 from CortexAi.agent.specialized_agent import ResearchAgent, CodingAgent, WritingAgent
 from CortexAi.agent.multi_agent_system import AgentTeam
+from CortexAi.agent.tools.tool_collection import ToolCollection
+from CortexAi.agent.tools.file_reader_tool import FileReaderTool
+from CortexAi.agent.tools.file_writer_tool import FileWriterTool
+from CortexAi.agent.tools.python_executor_tool import PythonExecutorTool
+from CortexAi.agent.tools.web_search_tool import WebSearchTool
+from CortexAi.agent.tools.scraper_tool import ScraperTool
 
 
 async def demonstrate_basic_agent():
@@ -13,10 +19,20 @@ async def demonstrate_basic_agent():
     # Create a mock provider for testing without API keys
     provider = MockProvider(seed=42)  # For reproducible results
 
-    # Create a basic agent
+    # Create tools collection with all available tools
+    tools = ToolCollection(
+        FileReaderTool(),
+        FileWriterTool(),
+        PythonExecutorTool(),
+        WebSearchTool(),
+        ScraperTool()
+    )
+    
+    # Create a basic agent with tools
     agent = BaseAgent(
         provider=provider,
-        name="BasicAgent"
+        name="BasicAgent",
+        tools=tools
     )
 
     # Run a simple task
@@ -33,11 +49,21 @@ async def demonstrate_autonomous_agent():
 
     # Create a mock provider
     provider = MockProvider(seed=42)
+    
+    # Create tools collection for autonomous agent
+    tools = ToolCollection(
+        FileReaderTool(),
+        FileWriterTool(),
+        PythonExecutorTool(),
+        WebSearchTool(),
+        ScraperTool()
+    )
 
     # Create an autonomous agent with enhanced capabilities
     agent = AutonomousAgent(
         provider=provider,
         name="AutonomousResearcher",
+        tools=tools,
         verbose=True,  # Print execution logs
         max_consecutive_failures=2,
         execution_timeout=120  # 2 minutes

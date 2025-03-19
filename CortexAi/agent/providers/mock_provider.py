@@ -1,4 +1,5 @@
 import random
+import re
 from typing import Union, List, Dict, Optional
 
 from CortexAi.agent.providers.base_provider import BaseProvider
@@ -32,11 +33,13 @@ class MockProvider(BaseProvider):
             "Let me analyze that for you... The key insights are: 1) data shows trends, 2) multiple factors involved."
         ]
 
-        self.tool_calls = [
-            "[UseTool:ScraperTool url=https://example.com]",
-            "[UseTool:DatabaseTool query=\"SELECT * FROM users LIMIT 10\"]",
-            "[UseTool:FileReaderTool path=\"/data/sample.csv\"]"
-        ]
+        self.tool_calls = {
+            "ScraperTool": "[UseTool:ScraperTool url=https://example.com]",
+            "FileReaderTool": "[UseTool:FileReaderTool file_path=\"/path/to/sample.txt\"]",
+            "FileWriterTool": "[UseTool:FileWriterTool file_path=\"/path/to/output.txt\" content=\"Sample content\" mode=\"w\"]",
+            "PythonExecutorTool": "[UseTool:PythonExecutorTool code=\"print('Hello world')\"]",
+            "WebSearchTool": "[UseTool:WebSearchTool query=\"search query\" num_results=5]",
+        }
 
     async def generate_async(
         self,
@@ -58,7 +61,36 @@ class MockProvider(BaseProvider):
         else:
             combined = prompt
 
-        tool_keywords = ["search", "find", "lookup", "get", "scrape", "download", "query", "analyze"]
+        # Check for direct tool usage instructions
+        tool_patterns = {
+            "FileReaderTool": r'FileReaderTool.*?file_path\s*=\s*["\']?([^"\']+)["\']?',
+            "FileWriterTool": r'FileWriterTool.*?file_path\s*=\s*["\']?([^"\']+)["\']?',
+            "PythonExecutorTool": r'PythonExecutorTool.*?code\s*=',
+            "WebSearchTool": r'WebSearchTool.*?query\s*=',
+            "ScraperTool": r'ScraperTool.*?url\s*='
+        }
+        
+        for tool_name, pattern in tool_patterns.items():
+            if re.search(pattern, combined, re.IGNORECASE):
+                # For FileReaderTool and FileWriterTool, extract and use the actual file path
+                if tool_name in ["FileReaderTool", "FileWriterTool"]:
+                    match = re.search(pattern, combined, re.IGNORECASE)
+                    if match and tool_name == "FileReaderTool":
+                        file_path = match.group(1)
+                        return f'[UseTool:FileReaderTool file_path="{file_path}"]'
+                    elif match and tool_name == "FileWriterTool":
+                        file_path = match.group(1)
+                        if "mode=\"a\"" in combined or "mode='a'" in combined:
+                            content = "'Line 4: This line was added by the FileWriterTool.'"
+                            return f'[UseTool:FileWriterTool file_path="{file_path}" content={content} mode="a"]'
+                        else:
+                            return f'[UseTool:FileWriterTool file_path="{file_path}" content="New content" mode="w"]'
+                
+                # Return the appropriate tool call template
+                return self.tool_calls[tool_name]
+
+        # Fallback to generic behavior
+        tool_keywords = ["search", "find", "lookup", "get", "scrape", "download", "query", "analyze", "read", "write", "execute"]
         has_tool_keyword = any(keyword in combined.lower() for keyword in tool_keywords)
 
         if "UseTool" in combined or (has_tool_keyword and random.random() < 0.7):
@@ -68,7 +100,7 @@ class MockProvider(BaseProvider):
             if urls and random.random() < 0.8:
                 return f"[UseTool:ScraperTool url={urls[0]}]"
             else:
-                return random.choice(self.tool_calls)
+                return random.choice(list(self.tool_calls.values()))
         else:
             if "plan" in combined.lower() and random.random() < 0.7:
                 return self._generate_mock_plan()

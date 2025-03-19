@@ -41,7 +41,14 @@ class BaseAgent:
         2) Executes plan steps in sequence
         3) Returns the final output (or the last step's output)
         """
-        steps = self.planner.create_plan(user_goal)
+        # Handle both synchronous and asynchronous planners
+        if hasattr(self.planner.create_plan, '__awaitable__') or hasattr(self.planner.create_plan, '__await__'):
+            # For async planner (LLMPlanner, AdaptivePlanner)
+            steps = await self.planner.create_plan(user_goal)
+        else:
+            # For sync planner (base Planner)
+            steps = self.planner.create_plan(user_goal)
+            
         last_output = ""
 
         while not self.planner.is_plan_complete(steps):
@@ -101,8 +108,10 @@ class BaseAgent:
 
     def _parse_tool_usage(self, text: str):
         """
-        Looks for patterns like [UseTool:ScraperTool url=https://...]
+        Looks for patterns like [UseTool:ScraperTool url=https://... file_path="/path/to/file.txt"]
         Returns { 'tool_name': 'ScraperTool', 'args': {...} } or None.
+        
+        Supports arguments with quoted values including spaces.
         """
         pattern = r"\[UseTool:(\w+)([^\]]*)\]"
         match = re.search(pattern, text)
@@ -111,10 +120,14 @@ class BaseAgent:
             arg_str = match.group(2).strip()
             args = {}
 
-            arg_pattern = r"(\w+)=(\S+)"
+            # More robust argument parsing
+            # Handle both quoted and unquoted values
+            arg_pattern = r'(\w+)=(?:"([^"]*)"|\'([^\']*)\'|([^\s]+))'
             for arg_match in re.finditer(arg_pattern, arg_str):
                 key = arg_match.group(1)
-                val = arg_match.group(2).strip('"').strip("'")
+                # Get the value from whichever capturing group matched (quoted or unquoted)
+                val = arg_match.group(2) or arg_match.group(3) or arg_match.group(4)
                 args[key] = val
+                
             return {"tool_name": tool_name, "args": args}
         return None

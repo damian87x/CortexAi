@@ -56,13 +56,7 @@ class SpecializedAgent(AutonomousAgent):
         Returns:
             Reasoning output from the LLM
         """
-        prompt = super()._create_thinking_prompt(step_description)
-
-        prompt.add_message(
-            "system",
-            f"Approach this task as a {self.domain} specialist. "
-            f"Your capabilities include: {', '.join(self.capabilities)}."
-        )
+        prompt = self._create_thinking_prompt(step_description)
 
         if getattr(self.provider, "is_chat_model", False):
             return await self.provider.generate_async(prompt.to_messages())

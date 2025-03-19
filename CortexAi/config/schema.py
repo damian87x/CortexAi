@@ -1,5 +1,30 @@
+import os
+import logging
 from typing import Dict, List, Optional, Union, Any
-from pydantic import BaseModel, Field, ValidationError
+
+USE_VALIDATION = os.environ.get("CONFIG_USE_VALIDATION", "true").lower() in ("true", "1", "yes", "y")
+
+try:
+    from pydantic import BaseModel, Field, ValidationError
+    PYDANTIC_AVAILABLE = True
+except ImportError:
+    PYDANTIC_AVAILABLE = False
+    logging.warning(
+        "pydantic is not installed. Schema validation is disabled. Install with: pip install pydantic"
+    )
+    
+    class Field:
+        def __init__(self, default=None, **kwargs):
+            self.default = default
+            self.kwargs = kwargs
+    
+    class BaseModel:
+        def __init__(self, **data):
+            for key, value in data.items():
+                setattr(self, key, value)
+        
+        class Config:
+            extra = "ignore"
 
 
 class ProviderConfig(BaseModel):
@@ -74,6 +99,19 @@ def validate_config(config_dict: Dict[str, Any]) -> AppConfig:
         Validated AppConfig instance
         
     Raises:
-        ValidationError: If validation fails
+        ValidationError: If validation fails and pydantic is available
+        Warning: If pydantic is not available (just returns AppConfig instance without validation)
     """
+    if not USE_VALIDATION:
+        logging.warning("Validation is disabled by CONFIG_USE_VALIDATION environment variable")
+        return AppConfig(**config_dict)
+        
+    if not PYDANTIC_AVAILABLE:
+        logging.warning(
+            "Schema validation skipped (pydantic not installed). "
+            "Install pydantic for validation: pip install pydantic"
+        )
+        return AppConfig(**config_dict)
+    
+    # With pydantic available, this will validate the config
     return AppConfig(**config_dict)

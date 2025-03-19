@@ -1,9 +1,49 @@
 import os
 import json
+import sys
 from typing import Any, Dict, Optional, Union, Type, TypeVar, cast, get_type_hints
 from pathlib import Path
 import logging
-from dotenv import load_dotenv
+
+logging.basicConfig(
+    level=getattr(logging, os.environ.get("CONFIG_LOG_LEVEL", "INFO").upper()),
+    format="%(levelname)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+USE_DOTENV = os.environ.get("CONFIG_USE_DOTENV", "true").lower() in ("true", "1", "yes", "y")
+USE_YAML = os.environ.get("CONFIG_USE_YAML", "true").lower() in ("true", "1", "yes", "y")
+ENV_PREFIX = os.environ.get("CONFIG_ENV_PREFIX", "")
+
+IN_VIRTUALENV = hasattr(sys, "real_prefix") or (
+    hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
+)
+
+if not IN_VIRTUALENV:
+    logger.warning(
+        "Not running in a virtual environment. "
+        "It's recommended to use a virtual environment for package management."
+    )
+
+if USE_DOTENV:
+    try:
+        from dotenv import load_dotenv
+        DOTENV_AVAILABLE = True
+    except ImportError:
+        DOTENV_AVAILABLE = False
+        logger.warning(
+            "python-dotenv is not installed. Install with: pip install python-dotenv"
+        )
+        
+        def load_dotenv(dotenv_path=None):
+            logger.warning("Skipping .env file loading (python-dotenv not installed)")
+            return False
+else:
+    DOTENV_AVAILABLE = False
+    
+    def load_dotenv(dotenv_path=None):
+        logger.info("Skipping .env file loading (disabled by CONFIG_USE_DOTENV)")
+        return False
 
 T = TypeVar('T')
 
@@ -74,7 +114,10 @@ class Config:
                 with open(path, 'r') as f:
                     config_data = yaml.safe_load(f)
             except ImportError:
-                raise ImportError("PyYAML is required for YAML config files. Install with 'pip install pyyaml'")
+                logging.warning("PyYAML is not installed. Using JSON parser as fallback.")
+                # Try to parse as JSON as a fallback
+                with open(path, 'r') as f:
+                    config_data = json.load(f)
         else:
             raise ValueError(f"Unsupported configuration file format: {path.suffix}")
             
@@ -238,6 +281,6 @@ def _validate_config(config: Config, cls: Type) -> None:
     type_hints = get_type_hints(cls)
     config_dict = config.to_dict()
     
-    for field_name in type_hints.items():
+    for field_name, field_type in type_hints.items():
         if field_name not in config_dict:
             logging.warning(f"Missing configuration for field: {field_name}")
