@@ -3,6 +3,8 @@ aiohttp>=3.8.0
 pydantic>=2.0.0
 asyncio>=3.4.3
 python-dotenv>=1.0.0
+openai>=1.0.0
+tiktoken>=0.5.0
 
 # Optional dependencies for config module
 PyYAML>=6.0  # For YAML configuration files

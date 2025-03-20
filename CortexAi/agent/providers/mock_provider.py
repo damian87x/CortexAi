@@ -33,10 +33,11 @@ class MockProvider(BaseProvider):
             "Let me analyze that for you... The key insights are: 1) data shows trends, 2) multiple factors involved."
         ]
 
+        # Use relative paths that will work in the user's workspace
         self.tool_calls = {
             "ScraperTool": "[UseTool:ScraperTool url=https://example.com]",
-            "FileReaderTool": "[UseTool:FileReaderTool file_path=\"/path/to/sample.txt\"]",
-            "FileWriterTool": "[UseTool:FileWriterTool file_path=\"/path/to/output.txt\" content=\"Sample content\" mode=\"w\"]",
+            "FileReaderTool": "[UseTool:FileReaderTool file_path=\"sample.txt\"]",
+            "FileWriterTool": "[UseTool:FileWriterTool file_path=\"output.txt\" content=\"Sample content\" mode=\"w\"]",
             "PythonExecutorTool": "[UseTool:PythonExecutorTool code=\"print('Hello world')\"]",
             "WebSearchTool": "[UseTool:WebSearchTool query=\"search query\" num_results=5]",
         }
@@ -61,7 +62,6 @@ class MockProvider(BaseProvider):
         else:
             combined = prompt
 
-        # Check for direct tool usage instructions
         tool_patterns = {
             "FileReaderTool": r'FileReaderTool.*?file_path\s*=\s*["\']?([^"\']+)["\']?',
             "FileWriterTool": r'FileWriterTool.*?file_path\s*=\s*["\']?([^"\']+)["\']?',
@@ -72,7 +72,6 @@ class MockProvider(BaseProvider):
         
         for tool_name, pattern in tool_patterns.items():
             if re.search(pattern, combined, re.IGNORECASE):
-                # For FileReaderTool and FileWriterTool, extract and use the actual file path
                 if tool_name in ["FileReaderTool", "FileWriterTool"]:
                     match = re.search(pattern, combined, re.IGNORECASE)
                     if match and tool_name == "FileReaderTool":
@@ -80,16 +79,19 @@ class MockProvider(BaseProvider):
                         return f'[UseTool:FileReaderTool file_path="{file_path}"]'
                     elif match and tool_name == "FileWriterTool":
                         file_path = match.group(1)
+                        # Use the provided path if it's valid, otherwise use a safe alternative
+                        if file_path.startswith('/') and not file_path.startswith('/home'):
+                            # Use a safer relative path
+                            file_path = "output.txt"
+                        
                         if "mode=\"a\"" in combined or "mode='a'" in combined:
                             content = "'Line 4: This line was added by the FileWriterTool.'"
                             return f'[UseTool:FileWriterTool file_path="{file_path}" content={content} mode="a"]'
                         else:
                             return f'[UseTool:FileWriterTool file_path="{file_path}" content="New content" mode="w"]'
                 
-                # Return the appropriate tool call template
                 return self.tool_calls[tool_name]
 
-        # Fallback to generic behavior
         tool_keywords = ["search", "find", "lookup", "get", "scrape", "download", "query", "analyze", "read", "write", "execute"]
         has_tool_keyword = any(keyword in combined.lower() for keyword in tool_keywords)
 

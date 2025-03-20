@@ -3,6 +3,7 @@ from typing import List, Dict, Optional, Union
 import asyncio
 
 from CortexAi.agent.core.prompts import Prompt
+from CortexAi.agent.core.default_prompts import BASE_SYSTEM_PROMPT, get_tool_use_prompt
 from CortexAi.agent.core.memory import BaseMemory, InMemoryMemory
 from CortexAi.agent.planning.planner import Planner, PlanStep
 from CortexAi.agent.providers.base_provider import BaseProvider
@@ -26,13 +27,15 @@ class BaseAgent:
         memory: Optional[BaseMemory] = None,
         tools: Optional[ToolCollection] = None,
         planner: Optional[Planner] = None,
-        name: str = "BaseAgent"
+        name: str = "BaseAgent",
+        system_prompt: Optional[str] = None
     ):
         self.provider = provider
         self.memory = memory or InMemoryMemory()
         self.tools = tools or ToolCollection()
         self.planner = planner or Planner()
         self.name = name
+        self.system_prompt = system_prompt or BASE_SYSTEM_PROMPT
 
     async def run_task(self, user_goal: str) -> str:
         """
@@ -76,8 +79,12 @@ class BaseAgent:
         prompt = Prompt()
         context = self.memory.get_context()
 
-        prompt.add_message("system", f"You are {self.name}. Use ReAct reasoning.\nContext:\n{context}")
-        prompt.add_message("system", "If a tool is needed, respond with [UseTool:ToolName arg=...]. Otherwise, provide a direct answer.")
+        prompt.add_message("system", f"You are {self.name}.\n{self.system_prompt}\n\nContext:\n{context}")
+        
+        if len(self.tools.tool_map) > 0:
+            tool_prompt = get_tool_use_prompt(self.tools.tool_map.values())
+            prompt.add_message("system", tool_prompt)
+            
         prompt.add_message("user", step_description)
 
         if getattr(self.provider, "is_chat_model", False):
@@ -120,12 +127,9 @@ class BaseAgent:
             arg_str = match.group(2).strip()
             args = {}
 
-            # More robust argument parsing
-            # Handle both quoted and unquoted values
             arg_pattern = r'(\w+)=(?:"([^"]*)"|\'([^\']*)\'|([^\s]+))'
             for arg_match in re.finditer(arg_pattern, arg_str):
                 key = arg_match.group(1)
-                # Get the value from whichever capturing group matched (quoted or unquoted)
                 val = arg_match.group(2) or arg_match.group(3) or arg_match.group(4)
                 args[key] = val
                 
