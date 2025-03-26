@@ -48,17 +48,22 @@ class PythonExecutorTool(BaseTool):
             # Restore the original stdout
             sys.stdout = original_stdout
 
-    async def execute(self, code: str, timeout = 5) -> Dict[str, Any]:
+    async def execute(self, code: str, timeout = 5, **kwargs) -> Dict[str, Any]:
         """
         Execute Python code with timeout and safety restrictions.
 
         Args:
             code: The Python code to execute
             timeout: Maximum execution time in seconds (default: 5)
+            **kwargs: Additional keyword arguments (ignored)
 
         Returns:
             A dictionary containing the execution output and success status
         """
+        # Log unexpected parameters if any (for debugging)
+        if kwargs:
+            unexpected_params = ', '.join(kwargs.keys())
+            print(f"WARNING: Ignoring unexpected parameters to PythonExecutorTool: {unexpected_params}")
         # Convert timeout to int if it's a string
         if isinstance(timeout, str):
             try:
