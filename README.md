@@ -44,12 +44,77 @@ CortexAi/
 
 ## Getting Started
 
-### Installation
+### Environment Setup
+
+CortexAi now includes browser automation capabilities and requires a proper environment setup. Use our provided setup script:
 
 ```bash
-# Install from PyPI
-pip install CortexAi
+# Clone the repository
+git clone https://github.com/damian87x/CortexAi.git
+cd CortexAi
+
+# Run the setup script (creates virtual environment and installs dependencies)
+./setup_environment.sh
 ```
+
+The setup script will:
+1. Create a Python virtual environment (venv)
+2. Install all required dependencies (python-dotenv, requests, playwright, browser-use, etc.)
+3. Install Playwright browsers
+4. Create a .env file from the template if it doesn't exist
+
+### API Keys
+
+Update your .env file with the necessary API keys:
+
+```
+# LLM provider API keys
+OPENAI_API_KEY=your_openai_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# Browser tool configuration
+BROWSER_HEADLESS=false  # Set to true if running without GUI
+```
+
+### Running Browser-enabled Flow
+
+We provide a new script that handles the virtual environment properly:
+
+```bash
+# Run the improved flow script with virtual environment support
+./run_with_venv.sh
+
+# You can also run with specific parameters
+./run_with_venv.sh --provider openrouter --model anthropic/claude-3.7-sonnet --no-headless
+```
+
+### Debugging and Testing
+
+We've included several scripts to help debug browser automation:
+
+```bash
+# Activate the virtual environment
+source venv/bin/activate
+
+# Run the browser click test script (tests Google search and article clicking)
+python browser_click_test.py
+
+# Run a simple browser debug script (tests browser navigation and JavaScript execution)
+python debug_browser.py
+
+# Run a specific test for Trump news search
+python test_everything.py
+```
+
+### Improved Browser Functionality
+
+The browser tool now supports:
+
+- Cookie consent handling for Google and other sites
+- Improved JavaScript execution
+- More robust element clicking by selector or text content
+- Search functionality with proper error handling
+- Screenshot capture for debugging
 
 #### Development Installation
 

@@ -83,6 +83,18 @@ def get_tool_use_prompt(tools):
     Returns:
         Formatted tool use prompt with tool descriptions
     """
-    tool_desc = "\n".join([f"- {tool.name}: {tool.description.split('\n')[0]}" 
-                          for tool in tools])
+    tool_descriptions = []
+    for tool in tools:
+        if tool.name == "BrowserTool":
+            tool_descriptions.append(f"""- {tool.name}: {tool.description.split('\n')[0]}
+  IMPORTANT: For BrowserTool, use these actions:
+  - navigate: [UseTool:BrowserTool action="navigate" url="https://example.com"]
+  - click: [UseTool:BrowserTool action="click" index=0]
+  - input_text: [UseTool:BrowserTool action="input_text" index=0 text="search query"]
+  - get_current_state: [UseTool:BrowserTool action="get_current_state"]
+  - get_text: [UseTool:BrowserTool action="get_text"]""")
+        else:
+            tool_descriptions.append(f"- {tool.name}: {tool.description.split('\n')[0]}")
+    
+    tool_desc = "\n".join(tool_descriptions)
     return TOOL_USE_PROMPT.format(tool_descriptions=tool_desc)

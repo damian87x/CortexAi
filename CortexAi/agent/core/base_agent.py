@@ -8,6 +8,7 @@ from CortexAi.agent.core.memory import BaseMemory, InMemoryMemory
 from CortexAi.agent.planning.planner import Planner, PlanStep
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
+from CortexAi.agent.tools.tool_result import ToolResult
 
 class BaseAgent:
     """
@@ -98,11 +99,23 @@ class BaseAgent:
         1) Parse any tool usage
         2) If found, execute the tool
         3) Otherwise, treat the LLM output as final user-facing answer
+        
+        Returns:
+            A string representation of the action result
         """
         usage = self._parse_tool_usage(reasoning)
         if usage:
-            tool_output = await self.tools.execute(usage["tool_name"], **usage["args"])
-            return f"Tool output:\n{tool_output}"
+            tool_result = await self.tools.execute(usage["tool_name"], **usage["args"])
+            
+            # Handle ToolResult objects
+            if isinstance(tool_result, ToolResult):
+                if tool_result.error:
+                    return f"Tool error:\n{tool_result.error}"
+                else:
+                    return f"Tool output:\n{tool_result.output}"
+            # Handle string results (for backward compatibility)
+            else:
+                return f"Tool output:\n{tool_result}"
         else:
             return reasoning
 

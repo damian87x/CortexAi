@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, Optional
 
 from CortexAi.agent.tools.base_tool import BaseTool
+from CortexAi.agent.tools.tool_result import ToolResult
 
 
 class FileReaderTool(BaseTool):
@@ -15,7 +16,7 @@ class FileReaderTool(BaseTool):
     name = "FileReaderTool"
     description = "Reads content from a specified file path"
 
-    async def execute(self, file_path: str) -> str:
+    async def execute(self, file_path: str) -> ToolResult:
         """
         Read content from a file.
 
@@ -27,22 +28,27 @@ class FileReaderTool(BaseTool):
         """
         try:
             if not os.path.exists(file_path):
-                return f"Error: File not found at path: {file_path}"
+                return ToolResult(error=f"File not found at path: {file_path}")
 
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
 
+            # For the preview shown to users
             content_preview = content[:500] + "..." if len(content) > 500 else content
-            return f"Successfully read file: {file_path}\n\nContent:\n{content_preview}"
+            
+            return ToolResult(
+                output=f"Successfully read file: {file_path}\n\nContent:\n{content_preview}",
+                system=content  # Store full content in system field for other tools to access
+            )
 
         except PermissionError:
-            return f"Error: Permission denied when trying to read {file_path}"
+            return ToolResult(error=f"Permission denied when trying to read {file_path}")
         except IsADirectoryError:
-            return f"Error: {file_path} is a directory, not a file"
+            return ToolResult(error=f"{file_path} is a directory, not a file")
         except UnicodeDecodeError:
-            return f"Error: File {file_path} could not be decoded as text (might be a binary file)"
+            return ToolResult(error=f"File {file_path} could not be decoded as text (might be a binary file)")
         except Exception as e:
-            return f"Error: Unexpected error when reading {file_path}: {str(e)}"
+            return ToolResult(error=f"Unexpected error when reading {file_path}: {str(e)}")
 
     def get_schema(self) -> Dict[str, Any]:
         """

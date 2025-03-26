@@ -1,5 +1,7 @@
 from typing import Any, Dict, Optional
 
+from CortexAi.agent.tools.tool_result import ToolResult
+
 
 class BaseTool:
     """
@@ -26,7 +28,7 @@ class BaseTool:
         if description:
             self.description = description
 
-    async def execute(self, **kwargs) -> Any:
+    async def execute(self, **kwargs) -> ToolResult:
         """
         Execute the tool's functionality with the provided arguments.
 
@@ -34,7 +36,7 @@ class BaseTool:
             **kwargs: Tool-specific arguments
 
         Returns:
-            The result of tool execution, which could be any type depending on the tool
+            ToolResult object containing output or error information
 
         Raises:
             NotImplementedError: Subclasses must implement this method

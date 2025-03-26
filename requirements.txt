@@ -9,6 +9,9 @@ tiktoken>=0.5.0
 # Optional dependencies for config module
 PyYAML>=6.0  # For YAML configuration files
 
+# Browser automation dependencies
+browser-use==0.1.40
+
 # Development dependencies
 pytest>=7.0.0
 black>=22.0.0

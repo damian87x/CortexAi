@@ -33,9 +33,9 @@ class MockProvider(BaseProvider):
             "Let me analyze that for you... The key insights are: 1) data shows trends, 2) multiple factors involved."
         ]
 
-        # Use relative paths that will work in the user's workspace
+        # Use tool names that match the actual tools in the system
         self.tool_calls = {
-            "ScraperTool": "[UseTool:ScraperTool url=https://example.com]",
+            "BrowserTool": "[UseTool:BrowserTool action=\"navigate\" url=\"https://example.com\"]",
             "FileReaderTool": "[UseTool:FileReaderTool file_path=\"sample.txt\"]",
             "FileWriterTool": "[UseTool:FileWriterTool file_path=\"output.txt\" content=\"Sample content\" mode=\"w\"]",
             "PythonExecutorTool": "[UseTool:PythonExecutorTool code=\"print('Hello world')\"]",
@@ -67,7 +67,7 @@ class MockProvider(BaseProvider):
             "FileWriterTool": r'FileWriterTool.*?file_path\s*=\s*["\']?([^"\']+)["\']?',
             "PythonExecutorTool": r'PythonExecutorTool.*?code\s*=',
             "WebSearchTool": r'WebSearchTool.*?query\s*=',
-            "ScraperTool": r'ScraperTool.*?url\s*='
+            "BrowserTool": r'BrowserTool.*?action\s*=|BrowserTool.*?url\s*='
         }
         
         for tool_name, pattern in tool_patterns.items():
@@ -100,7 +100,7 @@ class MockProvider(BaseProvider):
             urls = [w for w in words if w.startswith("http")]
 
             if urls and random.random() < 0.8:
-                return f"[UseTool:ScraperTool url={urls[0]}]"
+                return f"[UseTool:BrowserTool action=\"navigate\" url={urls[0]}]"
             else:
                 return random.choice(list(self.tool_calls.values()))
         else:

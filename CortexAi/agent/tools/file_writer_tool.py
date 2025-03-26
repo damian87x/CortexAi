@@ -2,6 +2,7 @@ import os
 from typing import Dict, Any, Optional
 
 from CortexAi.agent.tools.base_tool import BaseTool
+from CortexAi.agent.tools.tool_result import ToolResult
 
 
 class FileWriterTool(BaseTool):
@@ -15,7 +16,7 @@ class FileWriterTool(BaseTool):
     name = "FileWriterTool"
     description = "Writes content to a specified file path"
 
-    async def execute(self, file_path: str, content: str, mode: str = "w") -> str:
+    async def execute(self, file_path: str, content: str, mode: str = "w") -> ToolResult:
         """
         Write content to a file.
 
@@ -36,14 +37,14 @@ class FileWriterTool(BaseTool):
             with open(file_path, mode, encoding='utf-8') as file:
                 file.write(content)
 
-            return f"Successfully wrote to file: {file_path}"
+            return ToolResult(output=f"Successfully wrote to file: {file_path}")
 
         except PermissionError:
-            return f"Error: Permission denied when trying to write to {file_path}"
+            return ToolResult(error=f"Permission denied when trying to write to {file_path}")
         except IsADirectoryError:
-            return f"Error: {file_path} is a directory, not a file"
+            return ToolResult(error=f"{file_path} is a directory, not a file")
         except Exception as e:
-            return f"Error: Unexpected error when writing to {file_path}: {str(e)}"
+            return ToolResult(error=f"Unexpected error when writing to {file_path}: {str(e)}")
 
     def get_schema(self) -> Dict[str, Any]:
         """

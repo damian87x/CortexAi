@@ -29,6 +29,18 @@ providers:
     additional_params:
       temperature: 0.7
       max_tokens: 2000
+      
+  # OpenRouter provider configuration
+  openrouter:
+    type: openai  # Uses the same provider type as OpenAI
+    api_key: ${OPENROUTER_API_KEY}  # Will be replaced by environment variable
+    base_url: https://openrouter.ai/api/v1  # OpenRouter API endpoint
+    model: anthropic/claude-3-opus-20240229  # Model ID in OpenRouter format
+    timeout: 90
+    max_retries: 3
+    additional_params:
+      temperature: 0.7
+      max_tokens: 4000
 
   # Anthropic provider configuration
   anthropic:
@@ -72,6 +84,17 @@ tools:
     timeout: 20
     additional_params:
       search_engine: duckduckgo
+      
+  browser:
+    name: BrowserTool
+    enabled: true
+    timeout: 60
+    additional_params:
+      headless: false
+      disable_security: true
+      user_agent: "CortexAi Browser 1.0"
+      viewport_width: 1280
+      viewport_height: 800
 
 # Agent Configurations
 agents:

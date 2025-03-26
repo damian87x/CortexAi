@@ -3,6 +3,17 @@ import time
 import argparse
 import os
 from typing import Dict, Optional
+from pathlib import Path
+
+# Load environment variables from .env file if available
+try:
+    from dotenv import load_dotenv
+    env_file = Path('.env')
+    if env_file.exists():
+        load_dotenv(env_file)
+        print(f"Loaded environment variables from {env_file}")
+except ImportError:
+    print("python-dotenv not installed, skipping .env loading")
 
 from CortexAi.agent.planning_agent import PlanningAgent, CodingAgent, ResearchAgent
 from CortexAi.agent.providers.base_provider import BaseProvider
@@ -20,6 +31,12 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 try:
+    from CortexAi.agent.providers.openrouter_provider import OpenRouterProvider
+    OPENROUTER_AVAILABLE = True
+except ImportError:
+    OPENROUTER_AVAILABLE = False
+    
+try:
     from CortexAi.agent.tools.browser_tool import BrowserTool
     BROWSER_TOOL_AVAILABLE = True
 except ImportError:
@@ -29,9 +46,10 @@ except ImportError:
 async def run_flow(
     agent_type: str = "planning", 
     timeout_seconds: int = 3600,
-    provider_type: str = "openai",
-    model: str = "gpt-4",
+    provider_type: str = "openrouter",  # Default to OpenRouter instead of OpenAI
+    model: str = "anthropic/claude-3.7-sonnet:thinking",  # Default to Claude model
     api_key: Optional[str] = None,
+    headless: bool = False,  # Browser visibility option
 ):
     """
     Run a CortexAi agent flow with the specified agent type.
@@ -44,6 +62,31 @@ async def run_flow(
         The result of the agent's execution
     """
     try:
+        # Handle OpenRouter provider (preferred)
+        if provider_type.lower() == "openrouter" and OPENROUTER_AVAILABLE:
+            api_key = api_key or os.environ.get("OPENROUTER_API_KEY")
+            
+            if not api_key:
+                print("No OpenRouter API key found. Check your .env file or environment variables.")
+                print("Trying OpenAI provider as fallback...")
+                provider_type = "openai"  # Try OpenAI as fallback
+            else:
+                try:
+                    provider = OpenRouterProvider(
+                        model=model,
+                        api_key=api_key,
+                        max_tokens=1000,
+                        temperature=0.7
+                    )
+                    print(f"Using OpenRouter provider with model: {model}")
+                    # Continue with this provider
+                    pass
+                except Exception as e:
+                    print(f"Error initializing OpenRouter provider: {str(e)}")
+                    print("Trying OpenAI provider as fallback...")
+                    provider_type = "openai"  # Try OpenAI as fallback
+        
+        # Handle OpenAI provider (if OpenRouter failed or was not selected)
         if provider_type.lower() == "openai" and OPENAI_AVAILABLE:
             api_key = api_key or os.environ.get("OPENAI_API_KEY")
             
@@ -63,7 +106,9 @@ async def run_flow(
                     print(f"Error initializing OpenAI provider: {str(e)}")
                     print("Falling back to MockProvider")
                     provider = MockProvider(seed=42)
-        else:
+        
+        # Use MockProvider if nothing else worked
+        if provider_type.lower() == "mock" or 'provider' not in locals():
             if provider_type.lower() != "mock":
                 print(f"Provider type '{provider_type}' not supported or unavailable.")
                 print("Using MockProvider instead.")
@@ -78,7 +123,9 @@ async def run_flow(
         
         if BROWSER_TOOL_AVAILABLE:
             try:
-                tool_list.append(BrowserTool())
+                # Initialize BrowserTool with non-headless mode by default
+                tool_list.append(BrowserTool(headless=headless, disable_security=True))
+                print(f"BrowserTool initialized (headless={headless})")
             except ImportError:
                 print("BrowserTool requires additional dependencies. Continuing without browser support.")
         
@@ -148,20 +195,25 @@ def main():
     parser.add_argument(
         "--provider",
         type=str,
-        default="openai",
-        choices=["openai", "mock"],
-        help="Provider to use (openai or mock)"
+        default="openrouter",  # Default to OpenRouter
+        choices=["openrouter", "openai", "mock"],
+        help="Provider to use (openrouter, openai, or mock)"
     )
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-4",
-        help="Model to use (for OpenAI provider)"
+        default="anthropic/claude-3.7-sonnet:thinking",  # Default to Claude model
+        help="Model to use (e.g., anthropic/claude-3.7-sonnet:thinking for OpenRouter, gpt-4 for OpenAI)"
     )
     parser.add_argument(
         "--api-key",
         type=str,
-        help="API key (for OpenAI provider, overrides environment variable)"
+        help="API key (for OpenRouter or OpenAI provider, overrides environment variable)"
+    )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run browser in headless mode (invisible)"
     )
     
     args = parser.parse_args()
@@ -171,7 +223,8 @@ def main():
         timeout_seconds=args.timeout,
         provider_type=args.provider,
         model=args.model,
-        api_key=args.api_key
+        api_key=args.api_key,
+        headless=args.headless  # Pass the headless argument
     ))
 
 
