@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import re
 from typing import Any, Dict, Optional, Union, Type, TypeVar, cast, get_type_hints
 from pathlib import Path
 import logging
@@ -46,6 +47,33 @@ else:
         return False
 
 T = TypeVar('T')
+
+def interpolate_env_vars(obj: Any) -> Any:
+    """
+    Recursively interpolate environment variables in strings.
+    
+    Args:
+        obj: Object to interpolate environment variables in
+        
+    Returns:
+        Object with environment variables interpolated
+    """
+    if isinstance(obj, str):
+        # Replace ${VAR} with os.environ.get('VAR', '')
+        def replace_env_var(match):
+            var_name = match.group(1)
+            env_value = os.environ.get(var_name, '')
+            if not env_value:
+                logger.warning(f"Environment variable '{var_name}' not found")
+            return env_value
+        
+        return re.sub(r'\${(\w+)}', replace_env_var, obj)
+    elif isinstance(obj, dict):
+        return {k: interpolate_env_vars(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [interpolate_env_vars(i) for i in obj]
+    else:
+        return obj
 
 class Config:
     def __init__(self, config_dict: Dict[str, Any] = None):
@@ -120,6 +148,10 @@ class Config:
                     config_data = json.load(f)
         else:
             raise ValueError(f"Unsupported configuration file format: {path.suffix}")
+            
+        # Interpolate environment variables in the loaded config
+        config_data = interpolate_env_vars(config_data)
+        logger.info(f"Interpolated environment variables in config file: {file_path}")
             
         return cls(config_data)
     

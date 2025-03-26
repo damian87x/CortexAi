@@ -10,6 +10,7 @@ import argparse
 import os
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Dict, Optional, List, Any
 
@@ -187,6 +188,7 @@ async def run_flow(
     headless: bool = False,
     breakdown: bool = False,
     workspace_folder: Optional[str] = None,
+    debug: bool = False,
 ):
     """
     Run a CortexAi agent flow with the specified configuration.
@@ -240,9 +242,28 @@ async def run_flow(
         
         print(f"\nProcessing task: {task}\n")
         
-        result = await flow.execute(task)
+        print("Executing task...")
         
-        return result
+        # Setup debug tracing if enabled
+        if debug:
+            print("DEBUG: Setting up exception hook...")
+            def debug_excepthook(type, value, tb):
+                print(f"DEBUG EXCEPTION: {type.__name__}: {value}")
+                traceback.print_tb(tb)
+                original_excepthook(type, value, tb)
+            
+            original_excepthook = sys.excepthook
+            sys.excepthook = debug_excepthook
+        
+        try:
+            result = await flow.execute(task)
+            return result
+        except TypeError as e:
+            if "missing 1 required positional argument: 'command'" in str(e):
+                print("DEBUG: PlanningTool issue detected: Missing 'command' parameter")
+                print("This is a known issue with the PlanningTool implementation.")
+                print("Suggested fix: Modify PlanningTool usage to include command parameter")
+            raise
             
     except KeyboardInterrupt:
         print("Operation cancelled by user.")
@@ -299,6 +320,11 @@ def main():
         type=str,
         help="Custom workspace folder name to save results"
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable debug mode with additional error information"
+    )
     
     args = parser.parse_args()
     
@@ -316,7 +342,8 @@ def main():
             api_key=args.api_key,
             headless=args.headless,
             breakdown=args.breakdown,
-            workspace_folder=args.workspace
+            workspace_folder=args.workspace,
+            debug=args.debug
         ))
         print("\nTask execution completed. Exiting...")
     except Exception as e:

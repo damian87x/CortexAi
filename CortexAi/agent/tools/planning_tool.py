@@ -52,7 +52,7 @@ class PlanningTool(BaseTool):
     
     async def execute(
         self,
-        command: Literal["create", "get", "mark_step"],
+        command: Optional[Literal["create", "get", "mark_step"]] = None,
         plan_id: Optional[str] = None,
         title: Optional[str] = None,
         steps: Optional[List[str]] = None,
@@ -75,6 +75,23 @@ class PlanningTool(BaseTool):
         Returns:
             ToolResult with the action's output or error
         """
+        # Handle missing command parameter (backward compatibility)
+        if command is None:
+            print("WARNING: PlanningTool.execute() called without 'command' parameter")
+            # Default to "get" if plan_id is provided, otherwise create a default plan
+            if plan_id:
+                command = "get"
+            else:
+                command = "create"
+                # Create a default plan ID and title if not provided
+                if not plan_id:
+                    import uuid
+                    plan_id = f"default-plan-{uuid.uuid4().hex[:8]}"
+                if not title:
+                    title = "Default Plan"
+                if not steps:
+                    steps = ["Execute the requested task"]
+        
         if command == "create":
             return self._create_plan(plan_id, title, steps)
         elif command == "get":
