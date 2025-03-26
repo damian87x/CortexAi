@@ -1,0 +1,38 @@
+# CortexAi Configuration
+
+# Provider Configurations
+providers:
+  # OpenAI provider configuration
+  openai:
+    type: openai
+    api_key: ${OPENAI_API_KEY}
+    model: gpt-4
+    timeout: 60
+    max_retries: 3
+    additional_params:
+      temperature: 0.7
+      max_tokens: 2000
+      
+  # OpenRouter provider configuration
+  openrouter:
+    type: openai
+    api_key: ${OPENROUTER_API_KEY}
+    base_url: https://openrouter.ai/api/v1
+    model: anthropic/claude-3.7-sonnet:thinking
+    timeout: 90
+    max_retries: 3
+    additional_params:
+      temperature: 0.7
+      max_tokens: 4000
+
+# Browser Configuration
+browser:
+  headless: false
+  disable_security: true
+  viewport_width: 1280
+  viewport_height: 800
+
+# Planning Configuration  
+planning:
+  enable_breakdown: true
+  default_step_count: 3
