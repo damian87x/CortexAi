@@ -7,6 +7,7 @@ A modular script for running AI tasks with browser integration and task breakdow
 
 import asyncio
 import argparse
+import logging
 import os
 import sys
 import time
@@ -55,8 +56,8 @@ from CortexAi.agent.tools.web_search_tool import WebSearchTool
 from CortexAi.agent.tools.planning_tool import PlanningTool
 
 # Import flow module
-from CortexAi.flow.base import FlowType
-from CortexAi.flow.flow_factory import FlowFactory
+from CortexAi.flow.flow_factory import FlowFactory, FlowType
+from CortexAi.agent.team_registry import TeamType
 
 # Import providers with error handling
 try:
@@ -187,6 +188,9 @@ async def run_flow(
     api_key: Optional[str] = None,
     headless: bool = False,
     breakdown: bool = False,
+    use_flow_manager: bool = True,
+    flow_type: str = FlowType.STANDARD,
+    team_type: Optional[str] = None,
     workspace_folder: Optional[str] = None,
     debug: bool = False,
 ):
@@ -194,40 +198,45 @@ async def run_flow(
     Run a CortexAi agent flow with the specified configuration.
     
     Args:
-        agent_type: Type of agent to use (planning, coding, research)
+        agent_type: Type of agent to use (planning, coding, research, writing)
         timeout_seconds: Maximum execution time in seconds
         provider_type: Provider to use (openrouter, openai, mock)
         model: Model to use
         api_key: API key for the provider
         headless: Whether to run browser in headless mode
         breakdown: Whether to break down tasks into steps
+        use_flow_manager: Whether to use FlowManager (enables multi-agent cooperation)
         workspace_folder: Folder to save results (within workspace/)
+        debug: Whether to enable debug mode
     
     Returns:
         The result of the agent's execution
     """
     try:
         provider = create_provider(provider_type, model, api_key)
-        
         tools = create_tools(headless)
         
-
         workspace_path = None
         if workspace_folder:
             workspace_path = str(Path("workspace") / workspace_folder)
             Path(workspace_path).mkdir(parents=True, exist_ok=True)
             print(f"Results will be saved to: {workspace_path}")
-
-        flow_type = FlowType.BREAKDOWN if breakdown else FlowType.STANDARD
-
-        flow = FlowFactory.create_flow(
-            flow_type=flow_type,
-            provider=provider,
-            tools=tools,
-            workspace_path=workspace_path,
-            timeout_seconds=timeout_seconds,
-        )
         
+        # Setup debug tracing if enabled
+        if debug:
+            print("DEBUG: Setting up exception hook...")
+            def debug_excepthook(type, value, tb):
+                print(f"DEBUG EXCEPTION: {type.__name__}: {value}")
+                traceback.print_tb(tb)
+                original_excepthook(type, value, tb)
+            
+            original_excepthook = sys.excepthook
+            sys.excepthook = debug_excepthook
+            
+            # Enable DEBUG level logging
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.INFO)
 
         print("\n" + "=" * 50)
         print("Enter your task below:")
@@ -242,28 +251,70 @@ async def run_flow(
         
         print(f"\nProcessing task: {task}\n")
         
-        print("Executing task...")
-        
-        # Setup debug tracing if enabled
-        if debug:
-            print("DEBUG: Setting up exception hook...")
-            def debug_excepthook(type, value, tb):
-                print(f"DEBUG EXCEPTION: {type.__name__}: {value}")
-                traceback.print_tb(tb)
-                original_excepthook(type, value, tb)
+        # Choose the appropriate execution approach
+        if use_flow_manager:
+            # Use the FlowManager for dynamic agent coordination
+            print("Using FlowManager for multi-agent coordination...")
+            from CortexAi.flow.flow_manager import FlowManager
             
-            original_excepthook = sys.excepthook
-            sys.excepthook = debug_excepthook
+            manager = FlowManager(
+                provider=provider,
+                tools=tools,
+                workspace_path=workspace_path,
+                timeout_seconds=timeout_seconds
+            )
+            
+            result = await manager.execute(task)
+            return result
         
-        try:
+        elif flow_type in ["team", "multi-agent"] and team_type:
+            # Use a specific team with the MultiAgentFlow
+            print(f"Using {team_type} team for task execution...")
+            
+            flow = FlowFactory.create_flow(
+                flow_type=FlowType.MULTI_AGENT,  # Use the multi-agent flow type
+                provider=provider,
+                tools=tools,
+                workspace_path=workspace_path,
+                timeout_seconds=timeout_seconds,
+                agent_type=agent_type,  # Still pass agent type for fallback
+                team_type=team_type    # Pass the team type for team creation
+            )
+            
             result = await flow.execute(task)
             return result
-        except TypeError as e:
-            if "missing 1 required positional argument: 'command'" in str(e):
-                print("DEBUG: PlanningTool issue detected: Missing 'command' parameter")
-                print("This is a known issue with the PlanningTool implementation.")
-                print("Suggested fix: Modify PlanningTool usage to include command parameter")
-            raise
+        
+        else:
+            # Use a direct single-agent flow
+            print(f"Using direct {agent_type} agent with {flow_type} flow...")
+            
+            # Map string flow type to constant
+            if flow_type == "standard":
+                actual_flow_type = FlowType.STANDARD
+            elif flow_type == "breakdown":
+                actual_flow_type = FlowType.BREAKDOWN
+            else:
+                actual_flow_type = FlowType.STANDARD
+                print(f"Unknown flow type '{flow_type}', defaulting to standard flow")
+            
+            flow = FlowFactory.create_flow(
+                flow_type=actual_flow_type,
+                provider=provider,
+                tools=tools,
+                workspace_path=workspace_path,
+                timeout_seconds=timeout_seconds,
+                agent_type=agent_type
+            )
+            
+            try:
+                result = await flow.execute(task)
+                return result
+            except TypeError as e:
+                if "missing 1 required positional argument: 'command'" in str(e):
+                    print("DEBUG: PlanningTool issue detected: Missing 'command' parameter")
+                    print("This is a known issue with the PlanningTool implementation.")
+                    print("Suggested fix: Modify PlanningTool usage to include command parameter")
+                raise
             
     except KeyboardInterrupt:
         print("Operation cancelled by user.")
@@ -278,8 +329,8 @@ def main():
         "--agent", 
         type=str, 
         default="planning",
-        choices=["planning", "coding", "research"],
-        help="Type of agent to use (planning, coding, research)"
+        choices=["planning", "coding", "research", "writing"],
+        help="Type of agent to use (planning, coding, research, writing)"
     )
     parser.add_argument(
         "--timeout", 
@@ -325,6 +376,29 @@ def main():
         action="store_true",
         help="Enable debug mode with additional error information"
     )
+    parser.add_argument(
+        "--multi-agent",
+        action="store_true",
+        help="Enable multi-agent coordination using FlowManager"
+    )
+    parser.add_argument(
+        "--single-agent",
+        action="store_true",
+        help="Disable multi-agent coordination and use only the specified agent type"
+    )
+    parser.add_argument(
+        "--team",
+        type=str,
+        choices=["research", "software", "content", "custom"],
+        help="Type of agent team to use (requires --flow team)"
+    )
+    parser.add_argument(
+        "--flow",
+        type=str,
+        default="standard",
+        choices=["standard", "breakdown", "team", "multi-agent"],
+        help="Type of flow to use"
+    )
     
     args = parser.parse_args()
     
@@ -332,6 +406,23 @@ def main():
     if args.breakdown and not args.workspace:
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         args.workspace = f"task_{timestamp}"
+    
+    # Determine flow type from args.flow
+    flow_type = args.flow.lower()
+    
+    # Determine whether to use the flow manager (default: true)
+    use_flow_manager = not args.single_agent
+    
+    # If team is specified, ensure we use the team flow
+    team_type = None
+    if args.team:
+        team_type = args.team
+        flow_type = "team"  # Override to use team flow
+        use_flow_manager = False  # Direct team flow, not flow manager
+    
+    # Convert breakdown flag to flow type if needed
+    if args.breakdown and flow_type == "standard":
+        flow_type = "breakdown"
     
     try:
         asyncio.run(run_flow(
@@ -341,7 +432,9 @@ def main():
             model=args.model,
             api_key=args.api_key,
             headless=args.headless,
-            breakdown=args.breakdown,
+            flow_type=flow_type,
+            team_type=team_type,
+            use_flow_manager=use_flow_manager,
             workspace_folder=args.workspace,
             debug=args.debug
         ))

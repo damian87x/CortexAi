@@ -1,19 +1,10 @@
 """Base flow module for CortexAi."""
 
-from enum import Enum
 from typing import Dict, Optional, Any, List
 
 from CortexAi.agent.providers.base_provider import BaseProvider
-from CortexAi.agent.planning_agent import PlanningAgent
 from CortexAi.agent.tools.tool_collection import ToolCollection
-
-
-class FlowType(Enum):
-    """Flow types available in CortexAi."""
-    
-    STANDARD = "standard"  # Standard direct flow
-    BREAKDOWN = "breakdown"  # Flow with task breakdown
-    RESEARCH = "research"  # Research-focused flow
+from CortexAi.agent.agent_factory import AgentFactory
 
 
 class BaseFlow:
@@ -25,6 +16,7 @@ class BaseFlow:
         tools: ToolCollection,
         workspace_path: Optional[str] = None,
         timeout_seconds: int = 3600,
+        agent_type: str = "planning",
     ):
         """
         Initialize base flow.
@@ -34,14 +26,20 @@ class BaseFlow:
             tools: Collection of tools
             workspace_path: Path to workspace directory for saving results
             timeout_seconds: Maximum execution time in seconds
+            agent_type: Type of agent to use (planning, coding, research, writing)
         """
         self.provider = provider
         self.tools = tools
         self.workspace_path = workspace_path
         self.timeout_seconds = timeout_seconds
+        self.agent_type = agent_type
         
-        # Create a planning agent
-        self.agent = PlanningAgent(provider=provider, tools=tools)
+        # Create an agent based on the agent type
+        self.agent = AgentFactory.create_agent(
+            agent_type=agent_type,
+            provider=provider,
+            tools=tools
+        )
     
     async def execute(self, task: str) -> str:
         """
