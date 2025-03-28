@@ -83,7 +83,8 @@ class BaseAgent:
         prompt.add_message("system", f"You are {self.name}.\n{self.system_prompt}\n\nContext:\n{context}")
         
         if len(self.tools.tool_map) > 0:
-            tool_prompt = get_tool_use_prompt(self.tools.tool_map.values())
+            # Pass the step description to get context-specific tool instructions
+            tool_prompt = get_tool_use_prompt(self.tools.tool_map.values(), step_description)
             prompt.add_message("system", tool_prompt)
             
         prompt.add_message("user", step_description)
@@ -131,16 +132,24 @@ class BaseAgent:
 
     def _parse_tool_usage(self, text: str):
         """
-        Looks for patterns like [UseTool:ScraperTool url=https://... file_path="/path/to/file.txt"]
-        Returns { 'tool_name': 'ScraperTool', 'args': {...} } or None.
+        Parse tool usage from text, supporting multiple formats:
         
-        Supports arguments with quoted values including spaces.
+        1. [UseTool:ToolName arg=value]  (legacy format)
+        2. Block format like:
+           ```
+           ToolName
+           param1: value1
+           param2: value2
+           ```
+           
+        Returns { 'tool_name': 'ToolName', 'args': {...} } or None.
         """
-        pattern = r"\[UseTool:(\w+)([^\]]*)\]"
-        match = re.search(pattern, text)
-        if match:
-            tool_name = match.group(1)
-            arg_str = match.group(2).strip()
+        # Try legacy format first
+        legacy_pattern = r"\[UseTool:(\w+)([^\]]*)\]"
+        legacy_match = re.search(legacy_pattern, text)
+        if legacy_match:
+            tool_name = legacy_match.group(1)
+            arg_str = legacy_match.group(2).strip()
             args = {}
 
             arg_pattern = r'(\w+)=(?:"([^"]*)"|\'([^\']*)\'|([^\s]+))'
@@ -150,4 +159,46 @@ class BaseAgent:
                 args[key] = val
                 
             return {"tool_name": tool_name, "args": args}
+        
+        # Try structured block format
+        # Look for a tool name followed by parameter lines
+        block_pattern = r"```\s*\n([\w-]+)\s*\n((?:.+?\n)+?)```"
+        block_match = re.search(block_pattern, text, re.DOTALL)
+        if block_match:
+            tool_name = block_match.group(1).strip()
+            param_section = block_match.group(2)
+            args = {}
+            
+            # Parse parameters in "key: value" format
+            param_pattern = r'(\w+):\s*(.+)'
+            for line in param_section.strip().split('\n'):
+                param_match = re.match(param_pattern, line.strip())
+                if param_match:
+                    key = param_match.group(1).strip()
+                    val = param_match.group(2).strip()
+                    args[key] = val
+            
+            return {"tool_name": tool_name, "args": args}
+            
+        # Also try plain format without code blocks
+        # This looks for any tool name followed by indented parameters
+        plain_pattern = r"(?:^|\n)([\w-]+)\s*(?:\n\s+(\w+):\s*(.+))+?"
+        plain_matches = re.finditer(plain_pattern, text, re.MULTILINE)
+        for plain_match in plain_matches:
+            tool_name = plain_match.group(1).strip()
+            
+            # If we found a potential tool name, look for indented parameters
+            param_pattern = r"^\s+(\w+):\s*(.+)$"
+            param_matches = re.finditer(param_pattern, text[plain_match.start():], re.MULTILINE)
+            
+            args = {}
+            for param_match in param_matches:
+                key = param_match.group(1)
+                val = param_match.group(2).strip()
+                args[key] = val
+                
+            # Only return if we found at least one parameter
+            if args:
+                return {"tool_name": tool_name, "args": args}
+        
         return None

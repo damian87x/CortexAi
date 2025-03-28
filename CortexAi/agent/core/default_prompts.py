@@ -66,66 +66,167 @@ Test your code thoroughly before presenting final solutions.
 """
 
 TOOL_USE_PROMPT = """
-To use a tool, you have two options:
+# Tool Usage
 
-1. Legacy format: [UseTool:ToolName param1="value1" param2="value2"]
+When you need to use a tool, use one of these formats:
 
-2. Modern format (recommended for Claude models): Directly use the tool with its proper parameters.
-   The system will recognize tool calls in your response and execute them appropriately.
+## Option 1: Structured Block Format (Preferred)
+```
+ToolName
+parameter1: value1
+parameter2: value2
+```
 
-Available tools:
+## Option 2: Legacy Format
+[UseTool:ToolName param1="value1" parameter2="value2"]
+
+# Available Tools
 {tool_descriptions}
 
-If no tool is needed, provide a direct answer.
+{task_specific_instructions}
+
+IMPORTANT:
+- ALWAYS include ALL required parameters for any tool you use
+- For research or information gathering tasks, use BrowserTool to access real information
+- Use the appropriate tool for each specific task type
+- If no tool is needed, provide a direct answer
 """
 
-def get_tool_use_prompt(tools):
+def get_tool_use_prompt(tools, step_description=""):
     """
-    Format the tool use prompt with available tools.
+    Dynamically generate comprehensive tool documentation based on the OpenManus pattern.
     
     Args:
         tools: A list of tools from ToolCollection
+        step_description: Optional description of the current step to generate context-specific instructions
         
     Returns:
-        Formatted tool use prompt with tool descriptions
+        Formatted tool use prompt with detailed tool descriptions and relevant examples
     """
+    # Generate detailed documentation for each tool
     tool_descriptions = []
-    for tool in tools:
-        if tool.name == "BrowserTool":
-            tool_descriptions.append(f"""- {tool.name}: {tool.description.split('\n')[0]}
-  Parameters:
-    - action (required): "navigate", "click", "input_text", "get_current_state", or "get_text"
-    - url (for navigate): URL to navigate to
-    - index (for click/input_text): Element index to interact with
-    - text (for input_text): Text to input
-
-  Example:
-    - Legacy: [UseTool:BrowserTool action="navigate" url="https://example.com"]
-    - Modern: I'll use BrowserTool to navigate to https://example.com""")
-        else:
-            # Get tool schema if available
-            schema = {}
-            if hasattr(tool, 'get_schema'):
-                schema = tool.get_schema()
-            elif hasattr(tool, 'parameters'):
-                schema = tool.parameters
-                
-            # Extract parameters info
-            params_info = ""
-            if schema and "properties" in schema:
-                params_info = "\n  Parameters:"
-                properties = schema.get("properties", {})
-                required = schema.get("required", [])
-                
-                for param_name, param_info in properties.items():
-                    is_required = param_name in required
-                    req_text = "(required)" if is_required else "(optional)"
-                    
-                    param_desc = param_info.get("description", "")
-                    params_info += f"\n    - {param_name} {req_text}: {param_desc}"
-            
-            description = tool.description.split('\n')[0]
-            tool_descriptions.append(f"- {tool.name}: {description}{params_info}")
     
-    tool_desc = "\n".join(tool_descriptions)
-    return TOOL_USE_PROMPT.format(tool_descriptions=tool_desc)
+    # Track if we have specific tool types
+    has_browser_tool = False
+    has_search_tool = False
+    
+    for tool in tools:
+        # Start with tool name and basic description
+        first_line = tool.description.split('\n')[0]
+        doc_lines = [f"## {tool.name}\n{first_line}"]
+        
+        # Track specific tool types
+        if tool.name == "BrowserTool":
+            has_browser_tool = True
+        elif tool.name == "WebSearchTool":
+            has_search_tool = True
+        
+        # Get schema if available
+        schema = {}
+        if hasattr(tool, 'get_schema'):
+            schema = tool.get_schema()
+        elif hasattr(tool, 'parameters'):
+            schema = tool.parameters
+        
+        # Generate parameter documentation
+        if schema and "properties" in schema:
+            doc_lines.append("\nParameters:")
+            properties = schema.get("properties", {})
+            required = schema.get("required", [])
+            
+            for param_name, param_info in properties.items():
+                is_required = param_name in required
+                req_text = "(REQUIRED)" if is_required else "(optional)"
+                
+                desc = ""
+                if isinstance(param_info, dict) and "description" in param_info:
+                    desc = param_info["description"]
+                
+                doc_lines.append(f"- {param_name} {req_text}: {desc}")
+        
+        # Get examples from the tool if available
+        examples = []
+        if hasattr(tool, 'get_examples') and callable(getattr(tool, 'get_examples')):
+            examples = tool.get_examples()
+        
+        if examples:
+            doc_lines.append("\nExample usage:")
+            
+            # Add structured format examples
+            structured_examples = [ex for ex in examples if ex.get("format") == "structured"]
+            for example in structured_examples:
+                doc_lines.append(f"{example.get('title', 'Example')}:")
+                doc_lines.append(f"```\n{example['content']}\n```")
+            
+            # Add legacy format examples
+            legacy_examples = [ex for ex in examples if ex.get("format") == "legacy"]
+            if legacy_examples:
+                for example in legacy_examples:
+                    doc_lines.append(f"{example.get('title', 'Legacy format')}: {example['content']}")
+        else:
+            # Fallback for tools that don't implement get_examples
+            doc_lines.append("\nExample usage:")
+            
+            if schema and "properties" in schema:
+                example_lines = [f"{tool.name}"]
+                for param_name, param_info in properties.items():
+                    if param_name in required:
+                        # Generate a placeholder value based on parameter name
+                        if "url" in param_name.lower():
+                            example_lines.append(f"{param_name}: https://example.com")
+                        elif "path" in param_name.lower():
+                            example_lines.append(f"{param_name}: /path/to/file.txt")
+                        elif "query" in param_name.lower():
+                            example_lines.append(f"{param_name}: search query example")
+                        else:
+                            example_lines.append(f"{param_name}: example_{param_name}")
+                
+                doc_lines.append("```\n" + "\n".join(example_lines) + "\n```")
+                doc_lines.append(f"Legacy format: [UseTool:{tool.name} param1=\"value1\" param2=\"value2\"]")
+        
+        tool_descriptions.append("\n".join(doc_lines))
+    
+    # Generate task-specific instructions based on step description - with clearer emphasis
+    task_specific_instructions = ""
+    
+    # Check if this is a research or information gathering task
+    is_research_task = any(term in step_description.lower() for term in 
+                           ["research", "find", "search", "look up", "information", 
+                            "data", "details", "news", "facts"])
+    
+    if is_research_task:
+        research_instructions = ["# TASK-SPECIFIC INSTRUCTIONS"]
+        
+        if has_browser_tool:
+            research_instructions.append("""
+## USING BROWSERTOOL FOR INFORMATION GATHERING
+
+⚠️ IMPORTANT: When researching or gathering information, you MUST use the BrowserTool to access real-world data.
+
+Follow this process:
+1. Use BrowserTool with 'navigate' to visit relevant websites
+2. Use BrowserTool with 'get_text' to extract content from the page
+3. Use BrowserTool with 'screenshot' to capture visual information if needed
+
+DO NOT fabricate information - if you can't find real data using the browser, acknowledge the limitation.
+""")
+        elif has_search_tool:
+            research_instructions.append("""
+## USING WEBSEARCHTOOL FOR INFORMATION GATHERING
+
+⚠️ IMPORTANT: For research or information gathering, you MUST use the WebSearchTool to perform searches.
+
+Follow this process:
+1. Use WebSearchTool with a specific query and number of results
+2. Analyze the search results to extract relevant information
+3. Synthesize the information into a comprehensive answer
+
+DO NOT fabricate information - if you can't find data with available tools, acknowledge the limitation.
+""")
+        
+        task_specific_instructions = "\n".join(research_instructions)
+    
+    return TOOL_USE_PROMPT.format(
+        tool_descriptions="\n\n".join(tool_descriptions),
+        task_specific_instructions=task_specific_instructions
+    )

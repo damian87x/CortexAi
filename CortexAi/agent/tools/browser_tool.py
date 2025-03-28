@@ -5,7 +5,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, List
 
 from CortexAi.agent.tools.base_tool import BaseTool
 from CortexAi.agent.tools.tool_result import ToolResult
@@ -553,6 +553,79 @@ class BrowserTool(BaseTool):
             },
             "required": ["action"]
         }
+        
+    def get_examples(self) -> List[Dict[str, str]]:
+        """
+        Get example usages of the BrowserTool.
+        
+        Returns:
+            List of example usage dictionaries with format and content
+        """
+        examples = []
+        
+        # Example 1: Navigate to a website
+        examples.append({
+            "format": "structured",
+            "title": "1. Navigate to a website",
+            "content": "BrowserTool\naction: navigate\nurl: https://www.google.com"
+        })
+        
+        # Example 2: Get text from a page
+        examples.append({
+            "format": "structured",
+            "title": "2. Get text content from the current page",
+            "content": "BrowserTool\naction: get_text"
+        })
+        
+        # Example 3: Take a screenshot
+        examples.append({
+            "format": "structured",
+            "title": "3. Take a screenshot",
+            "content": "BrowserTool\naction: screenshot"
+        })
+        
+        # Example 4: Click an element
+        examples.append({
+            "format": "structured",
+            "title": "4. Click an element by index",
+            "content": "BrowserTool\naction: click\nindex: 3"
+        })
+        
+        # Example 5: Input text
+        examples.append({
+            "format": "structured",
+            "title": "5. Input text into a form field",
+            "content": "BrowserTool\naction: input_text\nindex: 1\ntext: search query example"
+        })
+        
+        # Example 6: Get current state
+        examples.append({
+            "format": "structured",
+            "title": "6. Get current browser state",
+            "content": "BrowserTool\naction: get_current_state"
+        })
+        
+        # Example 7: Google search workflow
+        examples.append({
+            "format": "structured",
+            "title": "7. Complete search workflow",
+            "content": "# Step 1: Navigate to Google\nBrowserTool\naction: navigate\nurl: https://www.google.com\n\n# Step 2: Input search query\nBrowserTool\naction: input_text\nindex: 0\ntext: latest AI research\n\n# Step 3: Get text content\nBrowserTool\naction: get_text"
+        })
+        
+        # Legacy format examples
+        examples.append({
+            "format": "legacy",
+            "title": "Legacy format (navigate)",
+            "content": '[UseTool:BrowserTool action="navigate" url="https://www.google.com"]'
+        })
+        
+        examples.append({
+            "format": "legacy",
+            "title": "Legacy format (click)",
+            "content": '[UseTool:BrowserTool action="click" index="3"]'
+        })
+        
+        return examples
 
     def __del__(self):
         """Ensure cleanup when object is destroyed."""
