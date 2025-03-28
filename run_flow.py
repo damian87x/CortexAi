@@ -107,11 +107,19 @@ def create_provider(
             raise ValueError("No OpenRouter API key found. Set it in config.yml or provide with --api-key")
         
         try:
+            # Get additional parameters from config
+            additional_params = config.get("providers.openrouter.additional_params", {})
+            max_tokens = additional_params.get("max_tokens", 1000)
+            temperature = additional_params.get("temperature", 0.7)
+            top_p = additional_params.get("top_p", 1.0)
+            
+            # Build provider with supported parameters
             provider = OpenRouterProvider(
                 model=model,
                 api_key=api_key,
-                max_tokens=1000,
-                temperature=0.7
+                max_tokens=max_tokens,
+                temperature=temperature,
+                top_p=top_p
             )
             print(f"Using OpenRouter provider with model: {model}")
             return provider
@@ -128,12 +136,27 @@ def create_provider(
             raise ValueError("No OpenAI API key found. Set it in config.yml or provide with --api-key")
         
         try:
-            provider = OpenAIProvider(
-                model=model,
-                api_key=api_key,
-                max_tokens=1000,
-                temperature=0.7
-            )
+            # Get additional parameters from config
+            additional_params = config.get("providers.openai.additional_params", {})
+            max_tokens = additional_params.get("max_tokens", 1000)
+            temperature = additional_params.get("temperature", 0.7)
+            
+            # Prepare provider parameters
+            provider_params = {
+                "model": model,
+                "api_key": api_key,
+                "max_tokens": max_tokens,
+                "temperature": temperature
+            }
+            
+            # Add timeout and max_retries if supported by OpenAIProvider
+            timeout = config.get("providers.openai.timeout", 60)
+            max_retries = config.get("providers.openai.max_retries", 3)
+            provider_params["timeout"] = timeout 
+            provider_params["max_retries"] = max_retries
+            
+            # Build provider
+            provider = OpenAIProvider(**provider_params)
             print(f"Using OpenAI provider with model: {model}")
             return provider
         except Exception as e:
