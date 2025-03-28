@@ -67,10 +67,40 @@ class AutonomousAgent(BaseAgent):
         )
 
         try:
-            if hasattr(self.planner.create_plan, '__awaitable__') or hasattr(self.planner.create_plan, '__await__'):
-                steps = await self.planner.create_plan(user_goal)
-            else:
-                steps = self.planner.create_plan(user_goal)
+            try:
+                # More robust check for async planner and coroutine handling
+                if isinstance(self.planner, AdaptivePlanner) or isinstance(self.planner, LLMPlanner):
+                    # AdaptivePlanner and LLMPlanner are known to have async create_plan
+                    try:
+                        # Use asyncio to properly await the coroutine
+                        steps = await self.planner.create_plan(user_goal)
+                    except Exception as e:
+                        self._log_execution(
+                            "async_plan_error",
+                            message=f"Error in async planner: {str(e)}"
+                        )
+                        # Use basic planner as fallback
+                        steps = Planner().create_plan(user_goal)
+                else:
+                    # Use synchronous approach for other planner types
+                    steps = self.planner.create_plan(user_goal)
+                
+                # Ensure we have valid steps
+                if steps is None or not isinstance(steps, list):
+                    self._log_execution(
+                        "plan_error",
+                        message=f"Invalid plan returned by planner: {steps}"
+                    )
+                    # Create a fallback single-step plan using the basic Planner
+                    steps = Planner().create_plan(user_goal)
+            except Exception as e:
+                self._log_execution(
+                    "plan_creation_error",
+                    message=f"Error creating plan: {str(e)}"
+                )
+                # Use a simple fallback plan - but make sure we're not trying to use LLMPlanner directly
+                # Instead, use the most basic Planner class which doesn't require parameters
+                steps = Planner().create_plan(user_goal)
 
             self._log_execution(
                 "plan_created",

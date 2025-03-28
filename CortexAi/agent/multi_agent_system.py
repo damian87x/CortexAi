@@ -104,10 +104,14 @@ class MultiAgentSystem:
         self.agent_pool = AgentPool()
         self.provider = provider
 
+        # Initialize the planner with proper async handling
+        planner = AdaptivePlanner(provider)
+        
+        # Create the coordinator agent with the planner
         self.coordinator = AutonomousAgent(
             provider=provider,
             name=coordinator_name,
-            planner=AdaptivePlanner(provider),
+            planner=planner,
             verbose=True
         )
 
@@ -198,13 +202,22 @@ class MultiAgentSystem:
 
         print(f"🤖 Coordinator planning task delegation for: {task}")
 
-        # Get the plan from the coordinator
-        plan_result = await self.coordinator.run_task(planning_prompt)
-        execution_data["coordinator_plan"] = plan_result
-
         try:
-            delegations = self._extract_delegations_from_plan(plan_result)
-            execution_data["delegations"] = delegations
+            # Get the plan from the coordinator using try-except for proper error handling
+            plan_result = await self.coordinator.run_task(planning_prompt)
+            if not isinstance(plan_result, str):
+                # Make sure we're handling the result correctly
+                plan_result = str(plan_result)
+            execution_data["coordinator_plan"] = plan_result
+            # Extract delegations from the coordinator's plan, with proper error handling
+            try:
+                delegations = self._extract_delegations_from_plan(plan_result)
+                execution_data["delegations"] = delegations
+            except Exception as e:
+                print(f"Error extracting delegations: {str(e)}")
+                delegations = []
+                execution_data["delegations"] = []
+                execution_data["delegation_error"] = str(e)
 
             subtask_results = []
             for subtask in delegations:
@@ -255,10 +268,20 @@ class MultiAgentSystem:
 
             print(f"🤖 Coordinator synthesizing final result")
 
-            final_result = await self.coordinator.run_task(synthesis_prompt)
-            execution_data["final_result"] = final_result
-
-            return final_result, execution_data
+            try:
+                # Use try-except to handle potential coroutine issues
+                final_result = await self.coordinator.run_task(synthesis_prompt)
+                if not isinstance(final_result, str):
+                    final_result = str(final_result)
+                execution_data["final_result"] = final_result
+                
+                return final_result, execution_data
+            except Exception as e:
+                error_message = f"Error in synthesis phase: {str(e)}"
+                print(error_message)
+                execution_data["synthesis_error"] = error_message
+                execution_data["final_result"] = f"Synthesis failed: {str(e)}"
+                return f"Synthesis failed: {str(e)}", execution_data
 
         except Exception as e:
             error_message = f"Error in multi-agent execution: {str(e)}"
@@ -341,7 +364,7 @@ class AgentTeam:
     """
 
     @classmethod
-    def create_research_team(cls, provider: BaseProvider) -> MultiAgentSystem:
+    def create_research_team(cls, provider: BaseProvider, coordinator_name: str = "ResearchCoordinator", **kwargs) -> MultiAgentSystem:
         """
         Create a team specialized for research tasks.
 
@@ -350,11 +373,13 @@ class AgentTeam:
 
         Args:
             provider: The LLM provider to use
+            coordinator_name: Name for the coordinator agent
+            **kwargs: Additional arguments for the MultiAgentSystem
 
         Returns:
             A configured MultiAgentSystem
         """
-        system = MultiAgentSystem(provider, coordinator_name="ResearchCoordinator")
+        system = MultiAgentSystem(provider, coordinator_name=coordinator_name)
 
         system.create_specialized_agent(
             domain="research",
@@ -383,7 +408,7 @@ class AgentTeam:
         return system
 
     @classmethod
-    def create_software_team(cls, provider: BaseProvider) -> MultiAgentSystem:
+    def create_software_team(cls, provider: BaseProvider, coordinator_name: str = "TechLead", **kwargs) -> MultiAgentSystem:
         """
         Create a team specialized for software development tasks.
 
@@ -392,11 +417,13 @@ class AgentTeam:
 
         Args:
             provider: The LLM provider to use
+            coordinator_name: Name for the coordinator agent
+            **kwargs: Additional arguments for the MultiAgentSystem
 
         Returns:
             A configured MultiAgentSystem
         """
-        system = MultiAgentSystem(provider, coordinator_name="TechLead")
+        system = MultiAgentSystem(provider, coordinator_name=coordinator_name)
 
         system.create_specialized_agent(
             domain="architecture",
@@ -425,7 +452,7 @@ class AgentTeam:
         return system
 
     @classmethod
-    def create_content_team(cls, provider: BaseProvider) -> MultiAgentSystem:
+    def create_content_team(cls, provider: BaseProvider, coordinator_name: str = "ContentDirector", **kwargs) -> MultiAgentSystem:
         """
         Create a team specialized for content creation tasks.
 
@@ -434,11 +461,13 @@ class AgentTeam:
 
         Args:
             provider: The LLM provider to use
+            coordinator_name: Name for the coordinator agent
+            **kwargs: Additional arguments for the MultiAgentSystem
 
         Returns:
             A configured MultiAgentSystem
         """
-        system = MultiAgentSystem(provider, coordinator_name="ContentDirector")
+        system = MultiAgentSystem(provider, coordinator_name=coordinator_name)
 
         system.create_specialized_agent(
             domain="research",
