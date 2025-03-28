@@ -4,7 +4,8 @@ import os
 import sys
 from unittest.mock import patch, MagicMock, AsyncMock
 
-from CortexAi.agent.planning_agent import PlanningAgent, CodingAgent, ResearchAgent
+from CortexAi.agent.specialized_agent import CodingAgent, ResearchAgent
+from CortexAi.agent.planning_agent import PlanningAgent
 from CortexAi.agent.providers.mock_provider import MockProvider
 
 try:

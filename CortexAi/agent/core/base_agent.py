@@ -1,29 +1,28 @@
-import re
-from typing import List, Dict, Optional, Union, Any, TYPE_CHECKING
-import asyncio
+"""Base agent implementation with ReAct cycle."""
 
+import re
+from typing import Dict, Optional, Any, List
+
+from CortexAi.core.interfaces import BaseMemory, BaseProvider, BaseTool, ToolResult
 from CortexAi.agent.core.prompts import Prompt
 from CortexAi.agent.core.default_prompts import BASE_SYSTEM_PROMPT, get_tool_use_prompt
-from CortexAi.agent.core.memory import BaseMemory, InMemoryMemory
-from CortexAi.planning.plan_step import PlanStep
-from CortexAi.agent.providers.base_provider import BaseProvider
+from CortexAi.agent.core.memory import InMemoryMemory
 from CortexAi.agent.tools.tool_collection import ToolCollection
-from CortexAi.agent.tools.tool_result import ToolResult
 
-# Use TYPE_CHECKING to avoid circular imports
-if TYPE_CHECKING:
-    from CortexAi.planning.planner import Planner
 
 class BaseAgent:
     """
-    A consolidated agent that can handle multi-step tasks using a Planner.
-    Each step runs a ReAct-like cycle:
-      1) think() with the LLM
-      2) act() to parse tool usage or produce final answer
-      3) observe() to store the results in memory.
-
-    The agent uses a multi-role Prompt to gather context from memory,
-    system instructions, user instructions, etc.
+    Base agent that implements the ReAct cycle.
+    
+    This agent provides the foundation for all specialized agents by implementing
+    the core ReAct pattern:
+      1) think() - reason about the task using the LLM
+      2) act() - parse and execute tool usage or return a direct answer
+      3) observe() - store results in memory for context
+    
+    Each type of agent can customize its behavior by overriding the think() method
+    to provide specialized prompting or the act() method to implement custom
+    tool handling.
     """
 
     def __init__(
@@ -31,75 +30,83 @@ class BaseAgent:
         provider: BaseProvider,
         memory: Optional[BaseMemory] = None,
         tools: Optional[ToolCollection] = None,
-        planner: Optional[Any] = None,
         name: str = "BaseAgent",
         system_prompt: Optional[str] = None
     ):
+        """
+        Initialize the agent.
+        
+        Args:
+            provider: LLM provider for generating responses
+            memory: Memory system for context management
+            tools: Collection of tools available to the agent
+            name: Name of the agent
+            system_prompt: Custom system prompt to use
+        """
         self.provider = provider
         self.memory = memory or InMemoryMemory()
         self.tools = tools or ToolCollection()
         self.name = name
         self.system_prompt = system_prompt or BASE_SYSTEM_PROMPT
+
+    async def run_step(self, step_description: str) -> str:
+        """
+        Execute a single step using the ReAct pattern.
         
-        # Lazy import of Planner to avoid circular imports
-        if planner is None:
-            from CortexAi.planning.planner import Planner
-            self.planner = Planner()
-        else:
-            self.planner = planner
-
-    async def run_task(self, user_goal: str) -> str:
-        """
-        Main entry point for a high-level user goal.
-        1) Creates a plan from the user goal
-        2) Executes plan steps in sequence
-        3) Returns the final output (or the last step's output)
-        """
-        # Handle both synchronous and asynchronous planners
-        if hasattr(self.planner.create_plan, '__awaitable__') or hasattr(self.planner.create_plan, '__await__'):
-            # For async planner (LLMPlanner, AdaptivePlanner)
-            steps = await self.planner.create_plan(user_goal)
-        else:
-            # For sync planner (base Planner)
-            steps = self.planner.create_plan(user_goal)
+        This method implements the core ReAct cycle:
+        1. Think (reasoning with LLM)
+        2. Act (execute tools or provide direct answer)
+        3. Observe (store results in memory)
+        
+        Args:
+            step_description: Description of the step to execute
             
-        last_output = ""
-
-        while not self.planner.is_plan_complete(steps):
-            step = self.planner.get_next_step(steps)
-            if not step:
-                break
-
-            self.planner.update_step_status(step, "in_progress")
-
-            reasoning = await self.think(step.description)
-            step_result = await self.act(reasoning)
-            self.observe(step.description, step_result)
-
-            last_output = step_result
-            self.planner.update_step_status(step, "completed")
-
-        return last_output
+        Returns:
+            Result of the step execution
+        """
+        # 1. Think - reason about the task
+        reasoning = await self.think(step_description)
+        
+        # 2. Act - execute tool or provide answer
+        result = await self.act(reasoning)
+        
+        # 3. Observe - store results in memory
+        self.observe(step_description, result)
+        
+        return result
 
     async def think(self, step_description: str) -> str:
         """
-        The "Reason" phase.
-        Build a prompt from memory + system instructions + user step description,
-        ask the LLM how to proceed (whether to use a tool or provide a direct answer).
+        The "Reason" phase of the ReAct cycle.
+        
+        Creates a prompt using:
+        - System instructions
+        - Agent memory context
+        - Tool descriptions 
+        - The current step description
+        
+        Args:
+            step_description: Description of the step to reason about
+            
+        Returns:
+            Reasoning output from the LLM
         """
         prompt = Prompt()
         context = self.memory.get_context()
 
-        prompt.add_message("system", f"You are {self.name}.\n{self.system_prompt}\n\nContext:\n{context}")
+        prompt.add_message(
+            "system", 
+            f"You are {self.name}.\n{self.system_prompt}\n\nContext:\n{context}"
+        )
         
         if len(self.tools.tool_map) > 0:
-            # Pass the step description to get context-specific tool instructions
+            # Add tool usage instructions
             tool_prompt = get_tool_use_prompt(self.tools.tool_map.values(), step_description)
             prompt.add_message("system", tool_prompt)
             
         prompt.add_message("user", step_description)
 
-        # Pass tools to the provider if the provider supports it
+        # Pass tools to the provider if supported
         tools_list = list(self.tools.tool_map.values()) if len(self.tools.tool_map) > 0 else None
         
         if getattr(self.provider, "is_chat_model", False):
@@ -109,15 +116,20 @@ class BaseAgent:
 
     async def act(self, reasoning: str) -> str:
         """
-        The "Act" phase.
-        1) Parse any tool usage
-        2) If found, execute the tool
-        3) Otherwise, treat the LLM output as final user-facing answer
+        The "Act" phase of the ReAct cycle.
         
+        Parses the reasoning output to determine if a tool should be used.
+        If tool usage is detected, executes the tool. Otherwise, returns
+        the reasoning as the final answer.
+        
+        Args:
+            reasoning: Reasoning output from the think phase
+            
         Returns:
-            A string representation of the action result
+            Result of the action (tool output or final answer)
         """
         usage = self._parse_tool_usage(reasoning)
+        
         if usage:
             tool_result = await self.tools.execute(usage["tool_name"], **usage["args"])
             
@@ -131,19 +143,26 @@ class BaseAgent:
             else:
                 return f"Tool output:\n{tool_result}"
         else:
+            # No tool usage, treat reasoning as the final answer
             return reasoning
 
-    def observe(self, user_input: str, agent_output: str):
+    def observe(self, user_input: str, agent_output: str) -> None:
         """
-        The "Observe" phase.
-        Store the interaction in memory so future steps see the context.
+        The "Observe" phase of the ReAct cycle.
+        
+        Stores the interaction in memory for future context.
+        
+        Args:
+            user_input: The input provided to the agent
+            agent_output: The output generated by the agent
         """
         self.memory.save_interaction(user_input, agent_output)
 
-    def _parse_tool_usage(self, text: str):
+    def _parse_tool_usage(self, text: str) -> Optional[Dict[str, Any]]:
         """
-        Parse tool usage from text, supporting multiple formats:
+        Parse tool usage from text, supporting multiple formats.
         
+        Supported formats:
         1. [UseTool:ToolName arg=value]  (legacy format)
         2. Block format like:
            ```
@@ -151,8 +170,16 @@ class BaseAgent:
            param1: value1
            param2: value2
            ```
+        3. Plain format with indentation:
+           ToolName
+             param1: value1
+             param2: value2
            
-        Returns { 'tool_name': 'ToolName', 'args': {...} } or None.
+        Args:
+            text: Text to parse for tool usage
+            
+        Returns:
+            Dictionary with tool_name and args if found, None otherwise
         """
         # Try legacy format first
         legacy_pattern = r"\[UseTool:(\w+)([^\]]*)\]"

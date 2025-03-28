@@ -1,19 +1,19 @@
+"""Specialized domain-focused agents."""
+
 from typing import Dict, List, Optional, Any
 
-from CortexAi.agent.autonomous_agent import AutonomousAgent
-from CortexAi.agent.core.memory import BaseMemory
-from CortexAi.planning.planner import Planner
-from CortexAi.agent.providers.base_provider import BaseProvider
-from CortexAi.agent.tools.tool_collection import ToolCollection
+from CortexAi.agent.core.base_agent import BaseAgent
+from CortexAi.core.interfaces import BaseMemory, BaseProvider
+from CortexAi.tools.tool_collection import ToolCollection
+from CortexAi.agent.core.prompts import Prompt
 
 
-class SpecializedAgent(AutonomousAgent):
+class SpecializedAgent(BaseAgent):
     """
     A specialized agent with domain-specific capabilities.
 
-    This agent extends the autonomous agent with additional customizations
-    for specific domains or tasks. It can be subclassed for different
-    specializations like research, coding, writing, etc.
+    This agent extends the base agent with customizations for specific domains,
+    primarily by providing custom prompts and domain-specific thinking strategies.
     """
 
     def __init__(
@@ -21,14 +21,26 @@ class SpecializedAgent(AutonomousAgent):
         provider: BaseProvider,
         memory: Optional[BaseMemory] = None,
         tools: Optional[ToolCollection] = None,
-        planner: Optional[Planner] = None,
         name: str = "SpecializedAgent",
         domain: str = "general",
         capabilities: List[str] = None,
         system_prompt_template: str = None,
         **kwargs
     ):
-        super().__init__(provider, memory, tools, planner, name, **kwargs)
+        """
+        Initialize a specialized agent.
+        
+        Args:
+            provider: LLM provider for generating responses
+            memory: Memory system for context management
+            tools: Collection of tools available to the agent
+            name: Name of the agent
+            domain: The domain or field this agent specializes in
+            capabilities: List of capabilities this agent has
+            system_prompt_template: Custom system prompt template with formatting placeholders
+            **kwargs: Additional arguments to pass to the parent constructor
+        """
+        super().__init__(provider, memory, tools, name, **kwargs)
 
         self.domain = domain
         self.capabilities = capabilities or []
@@ -42,6 +54,21 @@ class SpecializedAgent(AutonomousAgent):
             )
 
         self.system_prompt_template = system_prompt_template
+        # Set the system prompt with the formatted template
+        self.system_prompt = self._format_system_prompt()
+
+    def _format_system_prompt(self) -> str:
+        """
+        Format the system prompt template with the agent's properties.
+        
+        Returns:
+            Formatted system prompt
+        """
+        return self.system_prompt_template.format(
+            name=self.name,
+            domain=self.domain,
+            capabilities=", ".join(self.capabilities)
+        )
 
     async def think(self, step_description: str) -> str:
         """
@@ -59,11 +86,11 @@ class SpecializedAgent(AutonomousAgent):
         prompt = self._create_thinking_prompt(step_description)
 
         if getattr(self.provider, "is_chat_model", False):
-            return await self.provider.generate_async(prompt.to_messages())
+            return await self.provider.generate_async(prompt.to_messages(), tools=list(self.tools.tool_map.values()))
         else:
-            return await self.provider.generate_async(prompt.to_text())
+            return await self.provider.generate_async(prompt.to_text(), tools=list(self.tools.tool_map.values()))
 
-    def _create_thinking_prompt(self, step_description: str):
+    def _create_thinking_prompt(self, step_description: str) -> Prompt:
         """
         Create a prompt for the thinking phase with domain-specific elements.
 
@@ -73,26 +100,20 @@ class SpecializedAgent(AutonomousAgent):
         Returns:
             A Prompt object populated with appropriate messages
         """
-        from CortexAi.agent.core.prompts import Prompt
-
         prompt = Prompt()
         context = self.memory.get_context()
 
-        system_content = self.system_prompt_template.format(
-            name=self.name,
-            domain=self.domain,
-            capabilities=", ".join(self.capabilities)
-        )
-
-        prompt.add_message("system", system_content)
+        # Add the formatted system prompt as a system message
+        prompt.add_message("system", self.system_prompt)
 
         if context:
             prompt.add_message("system", f"Context:\n{context}")
 
-        prompt.add_message(
-            "system",
-            "If a tool is needed, respond with [UseTool:ToolName arg=...]. Otherwise, provide a direct answer."
-        )
+        # Add tool usage instructions if tools are available
+        if len(self.tools.tool_map) > 0:
+            from CortexAi.agent.core.default_prompts import get_tool_use_prompt
+            tool_prompt = get_tool_use_prompt(self.tools.tool_map.values(), step_description)
+            prompt.add_message("system", tool_prompt)
 
         prompt.add_message("user", step_description)
 
