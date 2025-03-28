@@ -66,7 +66,13 @@ Test your code thoroughly before presenting final solutions.
 """
 
 TOOL_USE_PROMPT = """
-To use a tool, respond with: [UseTool:ToolName param1="value1" param2="value2"]
+To use a tool, you have two options:
+
+1. Legacy format: [UseTool:ToolName param1="value1" param2="value2"]
+
+2. Modern format (recommended for Claude models): Directly use the tool with its proper parameters.
+   The system will recognize tool calls in your response and execute them appropriately.
+
 Available tools:
 {tool_descriptions}
 
@@ -87,14 +93,39 @@ def get_tool_use_prompt(tools):
     for tool in tools:
         if tool.name == "BrowserTool":
             tool_descriptions.append(f"""- {tool.name}: {tool.description.split('\n')[0]}
-  IMPORTANT: For BrowserTool, use these actions:
-  - navigate: [UseTool:BrowserTool action="navigate" url="https://example.com"]
-  - click: [UseTool:BrowserTool action="click" index=0]
-  - input_text: [UseTool:BrowserTool action="input_text" index=0 text="search query"]
-  - get_current_state: [UseTool:BrowserTool action="get_current_state"]
-  - get_text: [UseTool:BrowserTool action="get_text"]""")
+  Parameters:
+    - action (required): "navigate", "click", "input_text", "get_current_state", or "get_text"
+    - url (for navigate): URL to navigate to
+    - index (for click/input_text): Element index to interact with
+    - text (for input_text): Text to input
+
+  Example:
+    - Legacy: [UseTool:BrowserTool action="navigate" url="https://example.com"]
+    - Modern: I'll use BrowserTool to navigate to https://example.com""")
         else:
-            tool_descriptions.append(f"- {tool.name}: {tool.description.split('\n')[0]}")
+            # Get tool schema if available
+            schema = {}
+            if hasattr(tool, 'get_schema'):
+                schema = tool.get_schema()
+            elif hasattr(tool, 'parameters'):
+                schema = tool.parameters
+                
+            # Extract parameters info
+            params_info = ""
+            if schema and "properties" in schema:
+                params_info = "\n  Parameters:"
+                properties = schema.get("properties", {})
+                required = schema.get("required", [])
+                
+                for param_name, param_info in properties.items():
+                    is_required = param_name in required
+                    req_text = "(required)" if is_required else "(optional)"
+                    
+                    param_desc = param_info.get("description", "")
+                    params_info += f"\n    - {param_name} {req_text}: {param_desc}"
+            
+            description = tool.description.split('\n')[0]
+            tool_descriptions.append(f"- {tool.name}: {description}{params_info}")
     
     tool_desc = "\n".join(tool_descriptions)
     return TOOL_USE_PROMPT.format(tool_descriptions=tool_desc)

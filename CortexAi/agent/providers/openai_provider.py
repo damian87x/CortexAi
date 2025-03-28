@@ -1,8 +1,11 @@
 import os
 import asyncio
+import json
 from typing import Union, List, Dict, Optional, Any
 
 from CortexAi.agent.providers.base_provider import BaseProvider
+from CortexAi.agent.tools.base_tool import BaseTool
+from CortexAi.agent.tools.tool_result import ToolResult
 
 try:
     from openai import AsyncOpenAI, AsyncAzureOpenAI, OpenAIError
@@ -91,6 +94,7 @@ class OpenAIProvider(BaseProvider):
     async def generate_async(
         self,
         prompt: Union[str, List[Dict[str, str]]],
+        tools: Optional[List[BaseTool]] = None,
         **kwargs
     ) -> str:
         """
@@ -111,24 +115,189 @@ class OpenAIProvider(BaseProvider):
         try:
             messages = self._format_messages(prompt)
             
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                max_tokens=kwargs.get("max_tokens", self.max_tokens),
-                temperature=kwargs.get("temperature", self.temperature),
+            # Prepare API parameters
+            api_params = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+                "temperature": kwargs.get("temperature", self.temperature),
                 **{k: v for k, v in kwargs.items() if k not in ["max_tokens", "temperature"]}
-            )
+            }
             
-            if not response.choices or not response.choices[0].message.content:
-                raise ValueError("Empty or invalid response from OpenAI API")
-                
-            return response.choices[0].message.content
+            # Add tools if provided
+            if tools:
+                functions = self._convert_tools_to_functions(tools)
+                if functions:
+                    api_params["tools"] = functions
+                    api_params["tool_choice"] = "auto"
+            
+            # Make the API call
+            response = await self.client.chat.completions.create(**api_params)
+            
+            if not response.choices:
+                raise ValueError("Empty response from OpenAI API")
+            
+            message = response.choices[0].message
+            
+            # Check if the model used tools
+            if tools and hasattr(message, "tool_calls") and message.tool_calls:
+                # Process tool calls and continue the conversation
+                return await self._process_tool_calls(message, tools, messages)
+            else:
+                # Return the content directly if no tool calls
+                if not message.content:
+                    return "(No content in response)"
+                return message.content
             
         except OpenAIError as e:
             raise e
         except Exception as e:
             raise RuntimeError(f"Unexpected error in generate_async: {str(e)}")
 
+    def _convert_tools_to_functions(self, tools: List[BaseTool]) -> List[Dict[str, Any]]:
+        """
+        Convert CortexAi tools to OpenAI function format.
+        
+        Args:
+            tools: List of CortexAi tools
+            
+        Returns:
+            List of tools in OpenAI function format
+        """
+        functions = []
+        
+        for tool in tools:
+            # Get tool schema if available
+            schema = {}
+            if hasattr(tool, 'get_schema'):
+                schema = tool.get_schema()
+            elif hasattr(tool, 'parameters'):
+                schema = tool.parameters
+            
+            # Create function definition
+            function_def = {
+                "type": "function",
+                "function": {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "parameters": schema
+                }
+            }
+            
+            functions.append(function_def)
+            
+        return functions
+    
+    async def _process_tool_calls(
+        self,
+        message: Any,
+        tools: List[BaseTool],
+        messages: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Process tool calls and continue the conversation.
+        
+        Args:
+            message: The message from the API with tool calls
+            tools: List of available tools
+            messages: List of messages in the conversation
+            
+        Returns:
+            Combined response including tool results
+        """
+        tool_calls = message.tool_calls
+        assistant_message = {"role": "assistant", "content": message.content, "tool_calls": []}
+        
+        # Convert tool_calls into the format expected by the API
+        for tool_call in tool_calls:
+            assistant_message["tool_calls"].append({
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments
+                }
+            })
+        
+        # Add the assistant message to the conversation
+        messages.append(assistant_message)
+        
+        # Process each tool call
+        full_response = message.content or ""
+        tool_outputs = []
+        
+        for tool_call in tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+            
+            # Find the matching tool
+            tool = next((t for t in tools if t.name == function_name), None)
+            
+            if tool:
+                try:
+                    # Execute the tool
+                    result = await tool.execute(**function_args)
+                    
+                    # Convert ToolResult to string if needed
+                    if isinstance(result, ToolResult):
+                        result_str = result.output or result.error or str(result)
+                    else:
+                        result_str = str(result)
+                    
+                    # Add to outputs
+                    tool_outputs.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "content": result_str
+                    })
+                    
+                    # Add to full response
+                    full_response += f"\n\nTool result for {function_name}:\n{result_str}"
+                    
+                except Exception as e:
+                    error_msg = f"Error executing tool {function_name}: {str(e)}"
+                    
+                    # Add error to outputs
+                    tool_outputs.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": function_name,
+                        "content": error_msg
+                    })
+                    
+                    # Add to full response
+                    full_response += f"\n\nTool error for {function_name}:\n{error_msg}"
+            else:
+                error_msg = f"Tool {function_name} not found"
+                
+                # Add error to outputs
+                tool_outputs.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": error_msg
+                })
+                
+                # Add error to full response
+                full_response += f"\n\nTool error for {function_name}:\n{error_msg}"
+        
+        # Add tool outputs to messages
+        messages.extend(tool_outputs)
+        
+        # Get final response with tool results
+        final_response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            max_tokens=self.max_tokens,
+            temperature=self.temperature
+        )
+        
+        if final_response.choices and final_response.choices[0].message.content:
+            full_response += "\n\n" + final_response.choices[0].message.content
+        
+        return full_response.strip()
+    
     def _format_messages(self, prompt: Union[str, List[Dict[str, str]]]) -> List[Dict[str, str]]:
         """
         Format the prompt into chat messages format expected by OpenAI.

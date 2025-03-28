@@ -1,8 +1,10 @@
 import random
 import re
-from typing import Union, List, Dict, Optional
+import json
+from typing import Union, List, Dict, Optional, Any
 
 from CortexAi.agent.providers.base_provider import BaseProvider
+from CortexAi.agent.tools.base_tool import BaseTool
 
 
 class MockProvider(BaseProvider):
@@ -45,6 +47,7 @@ class MockProvider(BaseProvider):
     async def generate_async(
         self,
         prompt: Union[str, List[Dict[str, str]]],
+        tools: Optional[List[BaseTool]] = None,
         **kwargs
     ) -> str:
         """
@@ -95,7 +98,10 @@ class MockProvider(BaseProvider):
         tool_keywords = ["search", "find", "lookup", "get", "scrape", "download", "query", "analyze", "read", "write", "execute"]
         has_tool_keyword = any(keyword in combined.lower() for keyword in tool_keywords)
 
-        if "UseTool" in combined or (has_tool_keyword and random.random() < 0.7):
+        # If tools are provided, sometimes use them
+        if tools and random.random() < 0.3:
+            return await self._generate_tool_response(combined, tools)
+        elif "UseTool" in combined or (has_tool_keyword and random.random() < 0.7):
             words = combined.split()
             urls = [w for w in words if w.startswith("http")]
 
@@ -109,6 +115,60 @@ class MockProvider(BaseProvider):
             else:
                 return random.choice(self.responses)
 
+    async def _generate_tool_response(self, prompt: str, tools: List[BaseTool]) -> str:
+        """
+        Generate a mock response that uses one of the provided tools.
+        
+        Args:
+            prompt: The prompt to respond to
+            tools: List of available tools
+            
+        Returns:
+            A response that includes a tool call
+        """
+        # Randomly select a tool
+        tool = random.choice(tools)
+        
+        # Extract parameters from the tool schema
+        schema = {}
+        if hasattr(tool, 'get_schema'):
+            schema = tool.get_schema()
+        elif hasattr(tool, 'parameters'):
+            schema = tool.parameters
+            
+        # Get required parameters
+        required_params = schema.get('required', [])
+        properties = schema.get('properties', {})
+        
+        # Generate mock arguments
+        args = {}
+        for param_name in required_params:
+            if param_name in properties:
+                param_info = properties[param_name]
+                param_type = param_info.get('type', 'string')
+                
+                if param_type == 'string':
+                    args[param_name] = f"mock_{param_name}"
+                elif param_type == 'integer' or param_type == 'number':
+                    args[param_name] = random.randint(1, 10)
+                elif param_type == 'boolean':
+                    args[param_name] = random.choice([True, False])
+                elif param_type == 'array':
+                    args[param_name] = ["item1", "item2"]
+                elif param_type == 'object':
+                    args[param_name] = {"key": "value"}
+                    
+        # Return a format that includes the tool call with JSON args
+        tool_call = {
+            "name": tool.name,
+            "arguments": args
+        }
+        
+        return f"I'll use {tool.name} to help with this.\n\n" + \
+               f"Tool call: ```json\n{json.dumps(tool_call, indent=2)}\n```\n\n" + \
+               f"This is a simulated response from the MockProvider. In a real system, " + \
+               f"the {tool.name} would be executed with the provided arguments."
+    
     def _generate_mock_plan(self) -> str:
         """Generate a mock planning response with structured JSON"""
         return """

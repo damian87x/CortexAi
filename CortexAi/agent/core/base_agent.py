@@ -88,10 +88,13 @@ class BaseAgent:
             
         prompt.add_message("user", step_description)
 
+        # Pass tools to the provider if the provider supports it
+        tools_list = list(self.tools.tool_map.values()) if len(self.tools.tool_map) > 0 else None
+        
         if getattr(self.provider, "is_chat_model", False):
-            return await self.provider.generate_async(prompt.to_messages())
+            return await self.provider.generate_async(prompt.to_messages(), tools=tools_list)
         else:
-            return await self.provider.generate_async(prompt.to_text())
+            return await self.provider.generate_async(prompt.to_text(), tools=tools_list)
 
     async def act(self, reasoning: str) -> str:
         """

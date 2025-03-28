@@ -57,7 +57,7 @@ from CortexAi.agent.tools.planning_tool import PlanningTool
 
 # Import flow module
 from CortexAi.flow.flow_factory import FlowFactory, FlowType
-from CortexAi.agent.team_registry import TeamType
+from CortexAi.agent.team_registry import TeamType, TeamFactory
 
 # Import providers with error handling
 try:
@@ -255,7 +255,11 @@ async def run_flow(
         if use_flow_manager:
             # Use the FlowManager for dynamic agent coordination
             print("Using FlowManager for multi-agent coordination...")
-            from CortexAi.flow.flow_manager import FlowManager
+            
+            # Import at the point of use to avoid circular imports
+            import importlib
+            FlowManagerModule = importlib.import_module('CortexAi.flow.flow_manager')
+            FlowManager = FlowManagerModule.FlowManager
             
             manager = FlowManager(
                 provider=provider,
@@ -407,22 +411,35 @@ def main():
         timestamp = time.strftime("%Y%m%d_%H%M%S")
         args.workspace = f"task_{timestamp}"
     
-    # Determine flow type from args.flow
-    flow_type = args.flow.lower()
-    
-    # Determine whether to use the flow manager (default: true)
+    # By default, use the autonomous flow manager unless explicitly disabled with --single-agent
     use_flow_manager = not args.single_agent
     
-    # If team is specified, ensure we use the team flow
-    team_type = None
-    if args.team:
-        team_type = args.team
-        flow_type = "team"  # Override to use team flow
-        use_flow_manager = False  # Direct team flow, not flow manager
+    # If team is specified or flow is set to "team", use the direct team approach
+    flow_type = args.flow.lower()
+    team_type = args.team
     
-    # Convert breakdown flag to flow type if needed
-    if args.breakdown and flow_type == "standard":
-        flow_type = "breakdown"
+    if team_type or flow_type in ["team", "multi-agent"]:
+        if not team_type and flow_type in ["team", "multi-agent"]:
+            # If "team" flow type is specified but no team is specified, default to "auto"
+            # This lets the flow manager choose the team based on task analysis
+            use_flow_manager = True
+        else:
+            # Direct team flow
+            use_flow_manager = False
+            flow_type = "team"
+    
+    # Handle the breakdown flag
+    if args.breakdown:
+        if not flow_type or flow_type == "standard":
+            flow_type = "breakdown"
+    
+    print(f"\nExecution parameters:")
+    print(f"- Agent type: {args.agent}")
+    print(f"- Flow type: {flow_type}")
+    if team_type:
+        print(f"- Team type: {team_type}")
+    print(f"- Using flow manager: {use_flow_manager}")
+    print(f"- Workspace: {args.workspace if args.workspace else 'none'}")
     
     try:
         asyncio.run(run_flow(

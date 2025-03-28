@@ -28,6 +28,7 @@ class BreakdownFlow(BaseFlow):
         tools: ToolCollection,
         workspace_path: Optional[str] = None,
         timeout_seconds: int = 3600,
+        agent_type: str = "planning",
     ):
         """
         Initialize breakdown flow.

@@ -2,7 +2,7 @@
 
 from typing import Optional, Dict, Callable, Type
 
-from CortexAi.flow.base import BaseFlow, FlowType
+from CortexAi.flow.base import BaseFlow
 from CortexAi.flow.standard_flow import StandardFlow
 from CortexAi.flow.breakdown_flow import BreakdownFlow
 from CortexAi.flow.multi_agent_flow import MultiAgentFlow

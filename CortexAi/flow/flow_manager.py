@@ -9,8 +9,8 @@ from pathlib import Path
 
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
-from CortexAi.flow.base import BaseFlow, FlowType
-from CortexAi.flow.flow_factory import FlowFactory
+from CortexAi.flow.base import BaseFlow
+from CortexAi.flow.flow_factory import FlowFactory, FlowType
 from CortexAi.agent.agent_factory import AgentRegistry
 
 
@@ -163,8 +163,8 @@ class FlowManager:
         Execute a task using the flow manager.
         
         This method:
-        1. Uses the coordinator to plan and delegate subtasks
-        2. Executes subtasks with specialized flows
+        1. Analyzes the task to determine the optimal execution strategy
+        2. Either uses a specialized team or coordinates individual agents
         3. Aggregates and synthesizes results
         
         Args:
@@ -186,6 +186,51 @@ class FlowManager:
             "subtasks": []
         }
         
+        # First determine if we should use a specialized team
+        team_analysis = await self._analyze_task_for_team_selection(task)
+        
+        # If a specialized team is recommended, use it
+        if team_analysis["use_team"] and team_analysis["team_type"]:
+            self.logger.info(f"Task analysis suggests using {team_analysis['team_type']} team")
+            
+            execution_data["team_analysis"] = team_analysis
+            execution_data["execution_strategy"] = "specialized_team"
+            
+            try:
+                # Import team-related modules
+                from CortexAi.agent.team_registry import TeamFactory, TeamType
+                from CortexAi.flow.multi_agent_flow import MultiAgentFlow
+                
+                # Create team flow
+                team_flow = MultiAgentFlow(
+                    provider=self.provider,
+                    tools=self.tools,
+                    workspace_path=self.base_workspace_path,
+                    timeout_seconds=self.timeout_seconds,
+                    team_type=team_analysis["team_type"]
+                )
+                
+                # Execute with specialized team
+                self.logger.info(f"Executing task with {team_analysis['team_type']} team")
+                result = await team_flow.execute(task)
+                
+                # Record execution information
+                execution_data["team_type"] = team_analysis["team_type"]
+                execution_data["team_rationale"] = team_analysis["rationale"]
+                execution_data["final_result"] = result
+                
+                # Save execution data if workspace is provided
+                if self.base_workspace_path:
+                    self._save_execution_data(execution_data, time.time() - start_time)
+                
+                return result
+                
+            except Exception as e:
+                self.logger.error(f"Error using specialized team: {str(e)}")
+                self.logger.info("Falling back to agent coordination approach")
+                # Continue with normal coordination approach as fallback
+        
+        # If we're here, either team wasn't recommended or team approach failed
         # Get all available agent types
         available_agent_types = self.get_available_agent_types()
         
@@ -212,6 +257,8 @@ class FlowManager:
             f"```\n"
             f"Ensure each subtask has clear instructions and context so the agent can work independently."
         )
+        
+        execution_data["execution_strategy"] = "agent_coordination"
         
         # Use the coordinator to create a plan
         self.logger.info("Creating task delegation plan...")
@@ -303,6 +350,140 @@ class FlowManager:
                 self.logger.error(f"Error saving execution data: {str(e)}")
         
         return final_result
+    
+    async def _analyze_task_for_team_selection(self, task: str) -> Dict[str, Any]:
+        """
+        Analyze a task to determine if a specialized team should be used.
+        
+        Args:
+            task: The task description
+            
+        Returns:
+            Dictionary with analysis results:
+            - use_team: Whether to use a specialized team
+            - team_type: The recommended team type (or None)
+            - rationale: Explanation for the recommendation
+        """
+        try:
+            # Create a prompt for task analysis
+            analysis_prompt = (
+                f"TASK: {task}\n\n"
+                f"Analyze this task and determine if it would benefit from a specialized team approach. "
+                f"The following team types are available:\n\n"
+                f"1. RESEARCH - For tasks involving information gathering, analysis, fact-checking, and synthesis. "
+                f"This team includes specialists in data collection, analysis, fact verification, and report writing.\n\n"
+                f"2. SOFTWARE - For tasks involving software development, architecture, coding, testing, and documentation. "
+                f"This team includes specialists in system design, coding, quality assurance, and technical writing.\n\n"
+                f"3. CONTENT - For tasks involving content creation, writing, editing, and optimization. "
+                f"This team includes specialists in research, writing, editing, and SEO optimization.\n\n"
+                f"Based on the nature of the task, determine:\n"
+                f"1. Whether a specialized team would be beneficial (as opposed to individual agents)\n"
+                f"2. If yes, which team type would be most appropriate\n"
+                f"3. A brief explanation of your reasoning\n\n"
+                f"Format your response as JSON like this:\n"
+                f"```json\n"
+                f"{{\n"
+                f"  \"use_team\": true/false,\n"
+                f"  \"team_type\": \"RESEARCH/SOFTWARE/CONTENT/null\",\n"
+                f"  \"rationale\": \"Your explanation here\"\n"
+                f"}}\n"
+                f"```"
+            )
+            
+            # Use the coordinator to analyze the task
+            self.logger.info("Analyzing task to determine optimal execution strategy...")
+            analysis_result = await self.coordinator_flow.execute(analysis_prompt)
+            
+            # Extract the JSON response
+            import re
+            json_match = re.search(r"```(?:json)?\s*\n([\s\S]*?)```", analysis_result)
+            
+            if json_match:
+                try:
+                    analysis_data = json.loads(json_match.group(1))
+                    
+                    # Validate and normalize the response
+                    if not isinstance(analysis_data, dict):
+                        raise ValueError("Analysis result is not a dictionary")
+                    
+                    use_team = bool(analysis_data.get("use_team", False))
+                    
+                    team_type = analysis_data.get("team_type")
+                    if team_type and isinstance(team_type, str):
+                        team_type = team_type.lower()
+                        # Validate team type
+                        if team_type not in ["research", "software", "content"]:
+                            team_type = None
+                    else:
+                        team_type = None
+                    
+                    rationale = str(analysis_data.get("rationale", "No rationale provided"))
+                    
+                    return {
+                        "use_team": use_team,
+                        "team_type": team_type,
+                        "rationale": rationale
+                    }
+                    
+                except json.JSONDecodeError:
+                    self.logger.warning("Failed to parse task analysis JSON")
+            
+            # Fallback to pattern matching if JSON parsing failed
+            analysis_lower = analysis_result.lower()
+            
+            # Check for explicit team recommendations
+            use_team = "use team" in analysis_lower or "team would be beneficial" in analysis_lower
+            
+            # Determine which team is recommended
+            team_mentions = {
+                "research": analysis_lower.count("research"),
+                "software": analysis_lower.count("software") + analysis_lower.count("development"),
+                "content": analysis_lower.count("content") + analysis_lower.count("writing")
+            }
+            
+            # Find the most mentioned team type
+            recommended_team = max(team_mentions.items(), key=lambda x: x[1])[0] if any(team_mentions.values()) else None
+            
+            if not use_team:
+                recommended_team = None
+                
+            return {
+                "use_team": use_team,
+                "team_type": recommended_team,
+                "rationale": "Determined by fallback pattern analysis"
+            }
+            
+        except Exception as e:
+            self.logger.error(f"Error in task analysis: {str(e)}")
+            return {
+                "use_team": False,
+                "team_type": None,
+                "rationale": f"Error in analysis: {str(e)}"
+            }
+    
+    def _save_execution_data(self, execution_data: Dict[str, Any], execution_time: float) -> None:
+        """
+        Save execution data to a JSON file.
+        
+        Args:
+            execution_data: The execution data to save
+            execution_time: The execution time in seconds
+        """
+        try:
+            # Add execution time
+            execution_data["execution_time_seconds"] = execution_time
+            
+            # Ensure the directory exists
+            Path(self.base_workspace_path).mkdir(parents=True, exist_ok=True)
+            
+            # Save the data
+            data_file = Path(self.base_workspace_path) / "execution_data.json"
+            with open(data_file, 'w') as f:
+                json.dump(execution_data, f, indent=2)
+                
+            self.logger.info(f"Execution data saved to {data_file}")
+        except Exception as e:
+            self.logger.error(f"Error saving execution data: {str(e)}")
     
     def _get_agent_description(self, agent_type: str) -> str:
         """

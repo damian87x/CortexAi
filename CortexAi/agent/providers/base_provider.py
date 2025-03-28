@@ -1,4 +1,5 @@
-from typing import Union, List, Dict, Optional
+from typing import Union, List, Dict, Optional, Any
+from CortexAi.agent.tools.base_tool import BaseTool
 import asyncio
 
 
@@ -18,6 +19,7 @@ class BaseProvider:
     async def generate_async(
         self,
         prompt: Union[str, List[Dict[str, str]]],
+        tools: Optional[List[BaseTool]] = None,
         **kwargs
     ) -> str:
         """
@@ -39,6 +41,7 @@ class BaseProvider:
     def generate(
         self,
         prompt: Union[str, List[Dict[str, str]]],
+        tools: Optional[List[BaseTool]] = None,
         **kwargs
     ) -> str:
         """
@@ -56,13 +59,13 @@ class BaseProvider:
             new_loop = asyncio.new_event_loop()
             try:
                 return new_loop.run_until_complete(
-                    self.generate_async(prompt, **kwargs)
+                    self.generate_async(prompt, tools=tools, **kwargs)
                 )
             finally:
                 new_loop.close()
         else:
             return loop.run_until_complete(
-                self.generate_async(prompt, **kwargs)
+                self.generate_async(prompt, tools=tools, **kwargs)
             )
 
     async def get_embedding(self, text: str) -> List[float]:
