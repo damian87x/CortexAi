@@ -1,14 +1,18 @@
 import re
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Any, TYPE_CHECKING
 import asyncio
 
 from CortexAi.agent.core.prompts import Prompt
 from CortexAi.agent.core.default_prompts import BASE_SYSTEM_PROMPT, get_tool_use_prompt
 from CortexAi.agent.core.memory import BaseMemory, InMemoryMemory
-from CortexAi.agent.planning.planner import Planner, PlanStep
+from CortexAi.planning.plan_step import PlanStep
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
 from CortexAi.agent.tools.tool_result import ToolResult
+
+# Use TYPE_CHECKING to avoid circular imports
+if TYPE_CHECKING:
+    from CortexAi.planning.planner import Planner
 
 class BaseAgent:
     """
@@ -27,16 +31,22 @@ class BaseAgent:
         provider: BaseProvider,
         memory: Optional[BaseMemory] = None,
         tools: Optional[ToolCollection] = None,
-        planner: Optional[Planner] = None,
+        planner: Optional[Any] = None,
         name: str = "BaseAgent",
         system_prompt: Optional[str] = None
     ):
         self.provider = provider
         self.memory = memory or InMemoryMemory()
         self.tools = tools or ToolCollection()
-        self.planner = planner or Planner()
         self.name = name
         self.system_prompt = system_prompt or BASE_SYSTEM_PROMPT
+        
+        # Lazy import of Planner to avoid circular imports
+        if planner is None:
+            from CortexAi.planning.planner import Planner
+            self.planner = Planner()
+        else:
+            self.planner = planner
 
     async def run_task(self, user_goal: str) -> str:
         """

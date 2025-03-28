@@ -6,7 +6,7 @@ from CortexAi.agent.core.base_agent import BaseAgent
 from CortexAi.agent.autonomous_agent import AutonomousAgent
 from CortexAi.agent.specialized_agent import SpecializedAgent
 from CortexAi.agent.providers.base_provider import BaseProvider
-from CortexAi.agent.planning.planner import AdaptivePlanner
+from CortexAi.planning.planner import AdaptivePlanner
 
 
 class AgentPool:

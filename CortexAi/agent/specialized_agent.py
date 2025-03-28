@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Any
 
 from CortexAi.agent.autonomous_agent import AutonomousAgent
 from CortexAi.agent.core.memory import BaseMemory
-from CortexAi.agent.planning.planner import Planner
+from CortexAi.planning.planner import Planner
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
 

@@ -1,10 +1,13 @@
 """Team registry for CortexAi."""
 
-from typing import Dict, Callable, Any, Optional, List, Type
+from typing import Dict, Callable, Any, Optional, List, Type, TYPE_CHECKING
 import inspect
 
 from CortexAi.agent.providers.base_provider import BaseProvider
-from CortexAi.agent.multi_agent_system import MultiAgentSystem, AgentTeam
+
+# Avoid circular imports by using lazy imports
+if TYPE_CHECKING:
+    from CortexAi.agent.multi_agent_system import MultiAgentSystem, AgentTeam
 
 
 class TeamType:
@@ -95,7 +98,7 @@ class TeamRegistry:
         provider: BaseProvider, 
         coordinator_name: str = "Coordinator",
         **kwargs
-    ) -> MultiAgentSystem:
+    ) -> "MultiAgentSystem":
         """
         Create a default team with minimal setup.
         
@@ -119,7 +122,7 @@ class TeamFactory:
         provider: BaseProvider,
         coordinator_name: Optional[str] = None,
         **kwargs
-    ) -> MultiAgentSystem:
+    ) -> "MultiAgentSystem":
         """
         Create a team of the specified type.
         
@@ -160,6 +163,9 @@ class TeamFactory:
         """
         Auto-discover and register team creators from the AgentTeam class.
         """
+        # Import here to avoid circular imports
+        from CortexAi.agent.multi_agent_system import AgentTeam
+        
         # Register built-in team types from AgentTeam
         TeamRegistry.register(
             TeamType.RESEARCH, 

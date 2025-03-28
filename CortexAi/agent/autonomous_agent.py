@@ -1,9 +1,9 @@
 import asyncio
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, TYPE_CHECKING
 
 from CortexAi.agent.core.base_agent import BaseAgent
 from CortexAi.agent.core.memory import BaseMemory, InMemoryMemory
-from CortexAi.agent.planning.planner import Planner, LLMPlanner, AdaptivePlanner
+from CortexAi.planning.planner import Planner, LLMPlanner, AdaptivePlanner
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
 

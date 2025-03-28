@@ -12,13 +12,11 @@ The agent system is designed to be modular and extensible, enabling
 various agent types to work together on complex tasks.
 """
 
+# Only import the core base agent to avoid circular imports
 from CortexAi.agent.core.base_agent import BaseAgent
-from CortexAi.agent.planning_agent import PlanningAgent, CodingAgent, ResearchAgent
-from CortexAi.agent.specialized_agent import SpecializedAgent
-from CortexAi.agent.multi_agent_system import MultiAgentSystem, AgentPool, AgentTeam
-from CortexAi.agent.agent_factory import AgentFactory, AgentRegistry, AgentType
-from CortexAi.agent.team_registry import TeamFactory, TeamRegistry, TeamType
 
+# We define __all__ to indicate what the module provides
+# but we don't actually import everything to avoid circular imports
 __all__ = [
     'BaseAgent',
     'PlanningAgent',

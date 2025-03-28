@@ -1,13 +1,17 @@
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING, Union
 
 from CortexAi.agent.core.base_agent import BaseAgent
 from CortexAi.agent.core.memory import BaseMemory
 from CortexAi.agent.core.prompts import Prompt
 from CortexAi.agent.core.default_prompts import PLANNING_SYSTEM_PROMPT, PLANNING_NEXT_STEP_PROMPT
-from CortexAi.agent.planning.planner import LLMPlanner, Planner, PlanStep
+from CortexAi.planning.plan_step import PlanStep
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.tool_collection import ToolCollection
+
+# Type hints only, not actual imports
+if TYPE_CHECKING:
+    from CortexAi.planning.planner import Planner, LLMPlanner
 
 class PlanningAgent(BaseAgent):
     """
@@ -26,6 +30,8 @@ class PlanningAgent(BaseAgent):
         name: str = "PlanningAgent",
         max_steps: int = 20
     ):
+        # Lazy import to avoid circular dependency
+        from CortexAi.planning.planner import LLMPlanner
         planner = LLMPlanner(provider)
         
         super().__init__(
@@ -88,7 +94,8 @@ class PlanningAgent(BaseAgent):
             
             results.append(f"Step {current_step.index + 1}: {step_result}")
             
-            if isinstance(self.planner, LLMPlanner) and hasattr(self.planner, 'revise_plan'):
+            # Using class name string comparison instead of isinstance to avoid imports
+            if self.planner.__class__.__name__ == 'LLMPlanner' and hasattr(self.planner, 'revise_plan'):
                 if self.current_step % 3 == 0 or "unexpected" in step_result.lower():
                     plan_steps = await self.planner.revise_plan(user_goal, plan_steps, step_result)
                     plan_text = self._format_plan_for_display(plan_steps)
