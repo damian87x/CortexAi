@@ -4,6 +4,7 @@ import json
 from typing import Union, List, Dict, Optional, Any
 
 from CortexAi.agent.providers.base_provider import BaseProvider
+from CortexAi.agent.providers.transformations import OpenAITransform, convert_to_openai_messages
 from CortexAi.agent.tools.base_tool import BaseTool
 from CortexAi.agent.tools.tool_result import ToolResult
 
@@ -113,15 +114,24 @@ class OpenAIProvider(BaseProvider):
             OpenAIError: If the API call fails
         """
         try:
-            messages = self._format_messages(prompt)
+            # Format the messages using our transformation
+            if isinstance(prompt, str):
+                messages = [{"role": "user", "content": prompt}]
+            else:
+                messages = prompt
+            
+            # Apply OpenAI transformation
+            system_prompt = kwargs.get("system_prompt")
+            transform = OpenAITransform()
+            transformed_messages = transform.transform_messages(messages, system_prompt=system_prompt)
             
             # Prepare API parameters
             api_params = {
                 "model": self.model,
-                "messages": messages,
+                "messages": transformed_messages,
                 "max_tokens": kwargs.get("max_tokens", self.max_tokens),
                 "temperature": kwargs.get("temperature", self.temperature),
-                **{k: v for k, v in kwargs.items() if k not in ["max_tokens", "temperature"]}
+                **{k: v for k, v in kwargs.items() if k not in ["max_tokens", "temperature", "system_prompt"]}
             }
             
             # Add tools if provided
@@ -298,27 +308,7 @@ class OpenAIProvider(BaseProvider):
         
         return full_response.strip()
     
-    def _format_messages(self, prompt: Union[str, List[Dict[str, str]]]) -> List[Dict[str, str]]:
-        """
-        Format the prompt into chat messages format expected by OpenAI.
-        
-        Args:
-            prompt: String prompt or list of message dictionaries
-            
-        Returns:
-            List of message dictionaries in proper format
-        """
-        if isinstance(prompt, str):
-            return [{"role": "user", "content": prompt}]
-        elif isinstance(prompt, list):
-            for msg in prompt:
-                if not isinstance(msg, dict) or "role" not in msg or "content" not in msg:
-                    raise ValueError(
-                        "Each message must be a dict with 'role' and 'content' keys"
-                    )
-            return prompt
-        else:
-            raise TypeError("Prompt must be a string or list of message dictionaries")
+    # We no longer need _format_messages since we're using transformations
 
     async def get_embedding(self, text: str) -> List[float]:
         """

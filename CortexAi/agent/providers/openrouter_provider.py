@@ -13,6 +13,11 @@ from typing import Dict, List, Optional, Union, Any
 import requests
 import tiktoken
 
+from CortexAi.agent.providers.transformations.base_transform import TransformationRegistry
+from CortexAi.agent.providers.transformations.claude_transform import ClaudeTransform
+from CortexAi.agent.providers.transformations.openai_transform import OpenAITransform, convert_to_openai_messages
+from CortexAi.agent.providers.transformations.r1_transform import R1Transform, convert_to_r1_format
+
 from CortexAi.agent.providers.base_provider import BaseProvider
 from CortexAi.agent.tools.base_tool import BaseTool
 from CortexAi.agent.tools.tool_result import ToolResult
@@ -99,13 +104,31 @@ class OpenRouterProvider(BaseProvider):
             "X-Title": "CortexAi Framework"  # Your app name
         }
         
-        # Determine if this is an Anthropic model
+        # Determine model type
         is_anthropic = "anthropic" in self.model.lower()
+        is_deepseek = "deepseek" in self.model.lower()
+        is_qwen = "qwen" in self.model.lower()
+        is_perplexity = "perplexity" in self.model.lower()
+        use_r1_format = is_deepseek or is_qwen or is_perplexity
+        
+        # Apply appropriate message transformations based on model
+        transformed_messages = messages
+        system_prompt = kwargs.get("system_prompt")
+        
+        if is_anthropic:
+            transform = ClaudeTransform()
+            transformed_messages = transform.transform_messages(messages, system_prompt=system_prompt)
+        elif use_r1_format:
+            transform = R1Transform()
+            transformed_messages = transform.transform_messages(messages, system_prompt=system_prompt)
+        else:
+            transform = OpenAITransform()
+            transformed_messages = transform.transform_messages(messages, system_prompt=system_prompt)
         
         # Start with minimal required parameters
         payload = {
             "model": self.model,
-            "messages": messages,
+            "messages": transformed_messages,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens
         }
@@ -125,6 +148,19 @@ class OpenRouterProvider(BaseProvider):
             if openai_tools:
                 payload["tools"] = openai_tools
                 payload["tool_choice"] = "auto"
+                
+        # Add transforms parameter if needed
+        # Removes messages in the middle when close to context window limit
+        # Should not be applied to models that support prompt caching
+        supports_prompt_cache = is_anthropic
+        should_apply_middle_out = not supports_prompt_cache
+        
+        # Exception for DeepSeek which has a small context window
+        if "deepseek-chat" in self.model.lower():
+            should_apply_middle_out = True
+            
+        if should_apply_middle_out:
+            payload["transforms"] = ["middle-out"]
         
         # Add any additional parameters, but skip tool_choice for Anthropic models
         for key, value in kwargs.items():
