@@ -18,12 +18,12 @@ CortexAi is a modular, scalable framework for building autonomous AI agents. It 
 
 The project currently has two parallel implementations:
 
-1. `/CortexAi/` - The original implementation with uppercase naming
+1. `/CortexAi_legacy/` - The original implementation with uppercase naming (renamed from CortexAi)
 2. `/src/cortexai/` - A newer implementation using standard Python package structure with lowercase naming
 
 ### Target Structure
 
-We will standardize on the `/src/cortexai/` implementation, as it follows modern Python packaging best practices. The `/CortexAi/` folder will be marked as legacy and eventually deprecated.
+We will standardize on the `/src/cortexai/` implementation, as it follows modern Python packaging best practices. The `/CortexAi_legacy/` folder will be maintained until all functionality is ported to the new structure.
 
 ```
 CortexAi/
@@ -41,6 +41,36 @@ CortexAi/
 ├── CortexAi_legacy/    # Legacy implementation (to be refactored)
 └── (project files)     # README, setup.py, etc.
 ```
+
+## Porting Strategy
+
+When porting components from the legacy structure to the new structure, follow these guidelines:
+
+1. **Maintain Functionality**: Ensure all existing functionality is preserved during the port
+2. **Apply Fixes**: Incorporate any bug fixes from the legacy implementation (e.g., name parameter handling)
+3. **Improve Structure**: Use the opportunity to refactor and improve the code organization
+4. **Add Tests**: Create or update tests for each ported component
+5. **Update Documentation**: Add or improve docstrings and examples
+
+### Component Dependencies
+
+Port the components in this order to manage dependencies effectively:
+
+1. Core interfaces and base classes
+2. Provider implementations
+3. Memory systems
+4. Tool implementations
+5. Agent implementations
+6. Specialized agents and advanced features
+
+### Migration Path
+
+Provide a clear migration path for users:
+
+1. Mark legacy modules with deprecation warnings
+2. Document the equivalent new module for each legacy module
+3. Provide examples that show how to update imports and usage
+4. Eventually remove the legacy implementation after a transition period
 
 ## Architectural Patterns
 

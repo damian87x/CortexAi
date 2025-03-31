@@ -11,13 +11,14 @@ import json
 import datetime
 from typing import Dict, List, Optional, Any
 
-from CortexAi.agent.providers.mock_provider import MockProvider
-from CortexAi.agent.specialized_agent import ResearchAgent
-from CortexAi.agent.tools.tool_collection import ToolCollection
-from CortexAi.agent.tools.web_search_tool import WebSearchTool
-from CortexAi.agent.tools.scraper_tool import ScraperTool
-from CortexAi.agent.tools.directory_aware_file_writer import DirectoryAwareFileWriter
-from CortexAi.agent.core.memory import InMemoryMemory, BaseMemory
+from cortexai.providers.mock_provider import MockProvider
+from cortexai.agents.specialized_agent import ResearchAgent
+from cortexai.tools.tool_collection import ToolCollection
+from cortexai.tools.web_search_tool import WebSearchTool
+from cortexai.tools.scraper_tool import ScraperTool
+from cortexai.tools.directory_aware_file_writer import DirectoryAwareFileWriter
+from cortexai.agents.memory import InMemoryMemory
+from cortexai.core.interfaces import BaseMemory
 
 # Make sure output directory exists
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
