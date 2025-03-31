@@ -16,17 +16,37 @@ This approach enables:
 - Improved scalability for complex tasks
 - Better fault tolerance and error handling
 
+## Key Components
+
+### HierarchicalMemory
+
+A custom memory system that provides:
+- Tagged entries for better categorization and filtering
+- Role-based memory filtering (system, user, assistant)
+- Domain views for selective context sharing
+- Memory statistics tracking
+
+### DirectoryAwareFileWriter
+
+An enhanced file writing tool with:
+- Directory awareness (automatically handle output directories)
+- Path validation for security
+- Timestamp pattern support in filenames (`{timestamp:%Y%m%d}`)
+- Optional binary file support
+- Detailed operation logging
+
 ## Examples
 
 ### 1. Single-Agent Research (`hierarchical_single_agent_research.py`)
 
-This example demonstrates how to use the new hierarchical memory architecture with a single specialized research agent.
+This example demonstrates how to use the hierarchical memory architecture with a single specialized research agent.
 
 **Key features:**
-- Uses `MemoryDatasource` from the new architecture
-- Adapts a legacy `ResearchAgent` to work with the new memory system
-- Uses real tools (WebSearchTool, ScraperTool, FileWriterTool)
+- Uses `HierarchicalMemory` for advanced memory management
+- Adapts a `ResearchAgent` to work with the hierarchical memory system
+- Uses real tools (WebSearchTool, ScraperTool, DirectoryAwareFileWriter)
 - Demonstrates focused context and selective memory filtering
+- Implements memory tagging and role-based filtering
 
 **To run:**
 ```
@@ -47,6 +67,7 @@ This example implements the full hierarchical architecture for a complex researc
 - File versioning with timestamps
 - Performance metrics
 - Summarized memory views
+- Domain-specific file output directories
 
 **To run:**
 ```
@@ -62,7 +83,7 @@ The examples demonstrate a 3-tier memory hierarchy:
 1. **Global Memory (CEO level)**
    - Complete context of the entire task
    - High-level instructions and final consolidated results
-   - Created with `MemoryDatasource(name="global_memory")`
+   - Created with `HierarchicalMemory(name="global_memory")`
 
 2. **Domain Memory (Manager level)**
    - Domain-specific filtered views of the global memory
@@ -76,17 +97,31 @@ The examples demonstrate a 3-tier memory hierarchy:
 
 ### Adapter Pattern
 
-These examples bridge old and new architectures through adapter classes:
+These examples demonstrate adapter patterns for integrating components:
 
-1. **MemoryAdapter**: Connects the new `MemoryDatasource` to legacy agents
+1. **Memory Adapter**: Connects `HierarchicalMemory` to agents
    - Converts between memory formats
    - Provides consistent `get_context()` and `save_interaction()` methods
    - Configurable role and tag filtering
 
-2. **ManagerAgent**: Integrates with the existing agent system
-   - Manages domain-specific teams
+2. **ManagerAgent**: Manages domain-specific teams
    - Handles agent recruitment and task delegation
    - Provides error handling and context updates
+   - Coordinates cross-domain information sharing
+
+### File Operations
+
+The examples use `DirectoryAwareFileWriter` to manage file operations:
+
+- **Research Output**: Files are directed to domain-specific directories
+  - `research_output_{timestamp}/raw/` for research findings
+  - `research_output_{timestamp}/final/` for polished reports
+
+- **Versioning**: Timestamps are included in directory and filenames 
+  - Prevents overwriting previous results
+  - Enables tracking of multiple runs
+
+- **Security**: Path validation ensures files are written to appropriate locations
 
 ### Error Handling
 
@@ -98,14 +133,14 @@ The multi-agent example demonstrates robust error handling:
 - Graceful degradation when tasks fail
 - Global exception handling in main execution
 
-### File Management
+### Output Files
 
-The examples show efficient file management practices:
+The examples generate the following files:
 
-- Timestamped directories and filenames for versioning
-- Separate raw and final output directories
-- Structured memory statistics in JSON format
-- Markdown formatted research reports
+- **Research Files**: Raw research findings from the research agents
+- **Final Report**: Polished report from the writing agents
+- **Memory Statistics**: JSON files with detailed memory usage statistics
+- **Error Logs**: Detailed error information (when errors occur)
 
 ## Benefits Demonstrated
 
@@ -148,12 +183,13 @@ To use these examples in production:
    ])
    ```
 
-3. Configure appropriate error handling and retry logic:
+3. Configure security settings for the DirectoryAwareFileWriter:
    ```python
-   try:
-       result = await agent.run_task(task, max_retries=3)
-   except Exception as e:
-       # Handle specific exceptions with custom fallbacks
+   file_writer = DirectoryAwareFileWriter(
+       output_dir="/safe/output/dir",
+       safe_dirs=["/safe/output/dir", "/another/safe/dir"],
+       create_dirs=True
+   )
    ```
 
 4. Consider implementing persistent storage for memory:
@@ -172,3 +208,4 @@ Potential extensions to these examples:
 3. Add dynamic plan adjustment based on intermediate results
 4. Create specialized agents for additional domains (legal, design, etc.)
 5. Integrate with external knowledge bases and APIs
+6. Add binary file support for image or data processing

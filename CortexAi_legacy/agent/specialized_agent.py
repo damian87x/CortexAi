@@ -40,6 +40,10 @@ class SpecializedAgent(BaseAgent):
             system_prompt_template: Custom system prompt template with formatting placeholders
             **kwargs: Additional arguments to pass to the parent constructor
         """
+        # Remove name from kwargs if it exists to avoid duplication
+        if "name" in kwargs:
+            del kwargs["name"]
+            
         super().__init__(provider, memory, tools, name, **kwargs)
 
         self.domain = domain
@@ -147,9 +151,12 @@ class ResearchAgent(SpecializedAgent):
             "Fabricating information is strictly forbidden - you MUST acknowledge when you don't have data."
         )
 
+        # Use default name only if not provided in kwargs
+        if "name" not in kwargs:
+            kwargs["name"] = "ResearchAgent"
+            
         super().__init__(
             provider=provider,
-            name="ResearchAgent",
             domain="research",
             capabilities=capabilities,
             system_prompt_template=system_prompt,
@@ -178,9 +185,12 @@ class CodingAgent(SpecializedAgent):
             "For complex tasks, break them down into manageable components and solve them systematically."
         )
 
+        # Use default name only if not provided in kwargs
+        if "name" not in kwargs:
+            kwargs["name"] = "CodingAgent"
+            
         super().__init__(
             provider=provider,
-            name="CodingAgent",
             domain="software development",
             capabilities=capabilities,
             system_prompt_template=system_prompt,
@@ -209,9 +219,12 @@ class WritingAgent(SpecializedAgent):
             "For complex writing tasks, outline the structure first, then develop content systematically."
         )
 
+        # Use default name only if not provided in kwargs
+        if "name" not in kwargs:
+            kwargs["name"] = "WritingAgent"
+            
         super().__init__(
             provider=provider,
-            name="WritingAgent",
             domain="content creation",
             capabilities=capabilities,
             system_prompt_template=system_prompt,

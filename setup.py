@@ -1,17 +1,21 @@
 from setuptools import setup, find_packages
 import os
+import re
 
-with open(os.path.join("CortexAi", "__init__.py"), "r") as f:
-    for line in f:
-        if line.startswith("__version__"):
-            version = line.split("=")[1].strip().strip('"').strip("'")
-            break
+# Get version from src/cortexai/__init__.py
+with open(os.path.join("src", "cortexai", "__init__.py"), "r") as f:
+    content = f.read()
+    version_match = re.search(r'^__version__\s*=\s*["\']([^"\']*)["\']', content, re.M)
+    if version_match:
+        version = version_match.group(1)
+    else:
+        version = '0.1.0'  # Default version if not found
 
 with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
 
 setup(
-    name="CortexAi",
+    name="cortexai",
     version=version,
     description="A modular, scalable framework for building autonomous AI agents",
     long_description=long_description,
@@ -19,7 +23,8 @@ setup(
     author="CortexAi Team",
     author_email="your.email@example.com",
     url="https://github.com/damian87x/CortexAi",
-    packages=find_packages(),
+    package_dir={"":"src"},
+    packages=find_packages(where="src"),
     install_requires=[
         "aiohttp>=3.8.0",
         "pydantic>=2.0.0",
@@ -52,7 +57,7 @@ setup(
     license_files=("LICENSE",),
     include_package_data=True,
     package_data={
-        "CortexAi": ["config/sample_config.yml"],
+        "cortexai": ["config/sample_config.yml"],
     },
     python_requires=">=3.8",
 )

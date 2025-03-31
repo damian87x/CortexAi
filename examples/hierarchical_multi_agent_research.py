@@ -24,7 +24,7 @@ from CortexAi.agent.tools.tool_collection import ToolCollection
 from CortexAi.agent.tools.web_search_tool import WebSearchTool
 from CortexAi.agent.tools.scraper_tool import ScraperTool
 from CortexAi.agent.tools.file_reader_tool import FileReaderTool
-from CortexAi.agent.tools.file_writer_tool import FileWriterTool
+from CortexAi.agent.tools.directory_aware_file_writer import DirectoryAwareFileWriter
 from CortexAi.agent.tools.planning_tool import PlanningTool
 from CortexAi.agent.core.memory import InMemoryMemory, BaseMemory
 
@@ -198,8 +198,8 @@ class ManagerAgent:
         # Create the specialized agent
         agent = agent_class(
             provider=self.provider,
-            name=f"{self.domain}_{role}",
-            tools=tools
+            tools=tools,
+            name=f"{self.domain}_{role}"  # Name should be a keyword arg at the end
         )
         
         # Connect the agent with our memory adapter
@@ -483,19 +483,25 @@ async def demonstrate_hierarchical_research():
         "writing": writing_manager
     }
     
-    # Prepare tools for each domain
-    research_tools = ToolCollection([
+    # Prepare tools for each domain with directory-aware file writers
+    research_tools = ToolCollection(
         WebSearchTool(),
         ScraperTool(),
-        FileWriterTool(output_dir=f"{output_dir}/raw"),
+        DirectoryAwareFileWriter(
+            output_dir=f"{output_dir}/raw",
+            create_dirs=True
+        ),
         PlanningTool()
-    ])
+    )
     
-    writing_tools = ToolCollection([
+    writing_tools = ToolCollection(
         FileReaderTool(),
-        FileWriterTool(output_dir=f"{output_dir}/final"),
+        DirectoryAwareFileWriter(
+            output_dir=f"{output_dir}/final",
+            create_dirs=True
+        ),
         PlanningTool()
-    ])
+    )
     
     # Recruit specialized agents for each domain
     try:

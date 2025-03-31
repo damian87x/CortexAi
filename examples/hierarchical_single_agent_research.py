@@ -16,7 +16,7 @@ from CortexAi.agent.specialized_agent import ResearchAgent
 from CortexAi.agent.tools.tool_collection import ToolCollection
 from CortexAi.agent.tools.web_search_tool import WebSearchTool
 from CortexAi.agent.tools.scraper_tool import ScraperTool
-from CortexAi.agent.tools.file_writer_tool import FileWriterTool
+from CortexAi.agent.tools.directory_aware_file_writer import DirectoryAwareFileWriter
 from CortexAi.agent.core.memory import InMemoryMemory, BaseMemory
 
 # Make sure output directory exists
@@ -151,20 +151,23 @@ async def demonstrate_single_agent_research():
         ["research", "quantum_computing"]
     )
     
-    # Initialize tools - using the existing CortexAi tools
-    tools = ToolCollection([
+    # Initialize tools - using the enhanced DirectoryAwareFileWriter
+    tools = ToolCollection(
         WebSearchTool(),
         ScraperTool(),
-        FileWriterTool()  # Our FileWriterTool doesn't have an output_dir parameter
-    ])
+        DirectoryAwareFileWriter(
+            output_dir=output_dir,
+            create_dirs=True
+        )
+    )
     
     # Create a specialized research agent
     provider = MockProvider(seed=42)  # Replace with real provider for production
     
     research_agent = ResearchAgent(
         provider=provider,
-        name="QuantumResearcher",
-        tools=tools
+        tools=tools,
+        name="QuantumResearcher"  # Pass as keyword argument at the end
     )
     
     # Adapt the agent to use our hierarchical memory
