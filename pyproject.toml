@@ -23,3 +23,8 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
 python_classes = "Test*"
+# Add src directory to Python path for test imports
+pythonpath = [".", "src"]
+# Configure asyncio for tests
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"

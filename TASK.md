@@ -10,12 +10,13 @@
 - [x] Update setup.py to use the src-based package structure
 
 ### 2025-03-31: Port Legacy Components to New Structure
+- [x] Create `providers/base_provider.py` interface from legacy implementation
 - [x] Create `providers/mock_provider.py` from legacy implementation
 - [ ] Create `agents/specialized_agent.py` port implementation with name parameter fix
-- [ ] Create `tools/tool_collection.py` for managing collections of tools
-- [ ] Create `tools/web_search_tool.py` for web search functionality
-- [ ] Create `tools/scraper_tool.py` for web scraping capabilities
-- [ ] Create `tools/directory_aware_file_writer.py` for file writing with directory creation
+- [x] Create `tools/tool_collection.py` for managing collections of tools
+- [x] Create `tools/web_search_tool.py` for web search functionality
+- [x] Create `tools/scraper_tool.py` for web scraping capabilities
+- [x] Create `tools/directory_aware_file_writer.py` for file writing with directory creation
 - [ ] Implement `memory` module with InMemoryMemory and improved implementations
 - [ ] Port `run_task` method to the new BaseAgent implementation
 
@@ -35,8 +36,20 @@
 - [x] Fixed the "multiple values for keyword argument 'name'" error in SpecializedAgent
 - [x] Implemented missing `run_task` method in BaseAgent
 
-### 2025-03-31: Test Implementation
+### 2025-04-01: Test Implementation
 - [x] Created unit tests for MockProvider with expected use, edge cases, and failure scenarios
+- [x] Created unit tests for ToolCollection with expected use, edge cases, and failure scenarios
+- [x] Created unit tests for specialized tools (web search, scraper, file writer)
+- [ ] Create unit tests for specialized agents
+
+### 2025-04-01: Enhanced Component Features
+- [x] Added timeout support to tool execution for preventing long-running operations
+- [x] Implemented execution history tracking for debugging and monitoring tool usage
+- [x] Added batch execution capability for running multiple tools in parallel
+- [x] Implemented robust parameter validation against tool schemas
+- [x] Added content extraction modes to ScraperTool (HTML, text, elements, metadata)
+- [x] Enhanced DirectoryAwareFileWriter with security features and timestamp patterns
+- [x] Implemented parameter validation for tool inputs to catch errors early
 
 ## Backlog
 
