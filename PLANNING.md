@@ -26,6 +26,61 @@ The project currently has two parallel implementations:
 We will standardize on the `/src/cortexai/` implementation, as it follows modern Python packaging best practices. The `/CortexAi_legacy/` folder will be maintained until all functionality is ported to the new structure.
 
 ```
+src/cortexai/
+├── __init__.py
+├── agents/
+│   ├── __init__.py
+│   ├── base_agent.py
+│   └── specialized_agent.py
+├── core/
+│   ├── __init__.py
+│   └── logging.py
+├── memory/
+│   ├── __init__.py
+│   ├── base_memory.py
+│   ├── in_memory.py
+│   ├── hierarchical_memory.py
+│   └── vector_memory.py
+├── providers/
+│   ├── __init__.py
+│   ├── base_provider.py
+│   └── mock_provider.py
+└── tools/
+    ├── __init__.py
+    ├── base_tool.py
+    ├── directory_aware_file_writer.py
+    ├── scraper_tool.py
+    ├── tool_collection.py
+    └── web_search_tool.py
+```
+
+## Implementation Details
+
+### Memory Systems
+
+CortexAi offers a flexible memory system with multiple implementations for different use cases:
+
+1. **BaseMemory** - Abstract base class defining the memory interface
+   - Manages conversation history and context retrieval
+   - Common methods for adding items and retrieving context
+
+2. **InMemoryMemory** - Basic implementation storing items in memory
+   - Quick retrieval based on roles, tags, and timestamps
+   - Supports saving/loading state to/from JSON files
+   - Efficient filtering capabilities
+
+3. **HierarchicalMemory** - Extension with organizational features
+   - Adds sections for grouping related items
+   - Advanced filtering by section and category
+   - Supports categorization for more complex memory organization
+
+4. **VectorMemory** - Semantic search implementation
+   - Uses vector embeddings for meaning-based retrieval
+   - Supports similarity search for finding related items
+   - Asynchronous methods for external embedding service integration
+   - Configurable embedding provider with default test implementation
+
+Memory system usage examples can be found in `examples/memory_examples.py`.
 CortexAi/
 ├── src/
 │   └── cortexai/       # Primary implementation

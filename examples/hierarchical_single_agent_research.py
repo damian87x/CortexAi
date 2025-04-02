@@ -9,150 +9,61 @@ import asyncio
 import os
 import json
 import datetime
+import sys
 from typing import Dict, List, Optional, Any
 
-from cortexai.providers.mock_provider import MockProvider
-from cortexai.agents.specialized_agent import ResearchAgent
-from cortexai.tools.tool_collection import ToolCollection
-from cortexai.tools.web_search_tool import WebSearchTool
-from cortexai.tools.scraper_tool import ScraperTool
-from cortexai.tools.directory_aware_file_writer import DirectoryAwareFileWriter
-from cortexai.agents.memory import InMemoryMemory
-from cortexai.core.interfaces import BaseMemory
+# Add the src directory to the path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+
+from src.cortexai.providers.mock_provider import MockProvider
+from src.cortexai.agents.specialized_agent import ResearchAgent
+from src.cortexai.tools.tool_collection import ToolCollection
+from src.cortexai.tools.web_search_tool import WebSearchTool
+from src.cortexai.tools.scraper_tool import ScraperTool
+from src.cortexai.tools.directory_aware_file_writer import DirectoryAwareFileWriter
+from src.cortexai.memory import HierarchicalMemory, InMemoryMemory
 
 # Make sure output directory exists
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 output_dir = f"research_output_{timestamp}"
 os.makedirs(output_dir, exist_ok=True)
 
-# Enhanced memory class with hierarchical capabilities
-class HierarchicalMemory(BaseMemory):
-    """
-    Enhanced memory implementation with hierarchical capabilities.
-    
-    This class extends the base memory system with features like:
-    - Tagged entries
-    - Role-based filtering
-    - Domain views (filtered subsets of memory)
-    - Summarized views
-    """
-    
-    def __init__(self, name: str = "global", initial_context: Optional[str] = None):
-        """Initialize hierarchical memory."""
-        self.name = name
-        self.entries = []
-        self.views = {}
-        
-        # Add initial context if provided
-        if initial_context:
-            self.add_entry(initial_context, "system", ["instruction"])
-    
-    def add_entry(self, content: str, role: str = "user", tags: Optional[List[str]] = None):
-        """Add an entry to memory with role and tags."""
-        entry = {
-            "content": content,
-            "role": role,
-            "tags": tags or [],
-            "timestamp": datetime.datetime.now().isoformat()
-        }
-        self.entries.append(entry)
-        return entry
-    
-    def get_context(self, roles: Optional[List[str]] = None, 
-                   tags: Optional[List[str]] = None, 
-                   newest_first: bool = False) -> str:
-        """Get formatted context, optionally filtered by roles and tags."""
-        # Filter entries
-        filtered_entries = self.entries
-        
-        if roles:
-            filtered_entries = [e for e in filtered_entries if e["role"] in roles]
-            
-        if tags:
-            filtered_entries = [e for e in filtered_entries 
-                               if any(tag in e["tags"] for tag in tags)]
-        
-        # Order entries
-        if newest_first:
-            filtered_entries = list(reversed(filtered_entries))
-        
-        # Format context
-        context_parts = []
-        for entry in filtered_entries:
-            if entry["role"] == "system":
-                context_parts.append(f"System: {entry['content']}")
-            elif entry["role"] == "user":
-                context_parts.append(f"User: {entry['content']}")
-            elif entry["role"] == "assistant":
-                context_parts.append(f"Assistant: {entry['content']}")
-            else:
-                context_parts.append(f"{entry['role'].capitalize()}: {entry['content']}")
-        
-        return "\n\n".join(context_parts)
-    
-    def create_domain_view(self, domain_name: str) -> 'HierarchicalMemory':
-        """Create a domain-specific view of this memory."""
-        view = HierarchicalMemory(name=f"{self.name}_{domain_name}")
-        self.views[domain_name] = view
-        
-        # Add system instruction for this domain
-        view.add_entry(
-            f"You are working in the {domain_name} domain, a subset of the {self.name} memory.",
-            "system",
-            ["instruction", domain_name]
-        )
-        
-        return view
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get statistics about this memory."""
-        role_counts = {}
-        for entry in self.entries:
-            role = entry["role"]
-            role_counts[role] = role_counts.get(role, 0) + 1
-            
-        tag_counts = {}
-        for entry in self.entries:
-            for tag in entry["tags"]:
-                tag_counts[tag] = tag_counts.get(tag, 0) + 1
-                
-        stats = {
-            "name": self.name,
-            "total_entries": len(self.entries),
-            "roles": role_counts,
-            "tags": tag_counts,
-            "views": list(self.views.keys())
-        }
-        
-        return stats
-    
-    def save_interaction(self, user_input: str, agent_output: str) -> None:
-        """Save interaction between user and agent."""
-        self.add_entry(user_input, "user")
-        self.add_entry(agent_output, "assistant")
+# We're now using the implemented HierarchicalMemory from the memory module
+# No need to define a custom class here
 
 
 async def demonstrate_single_agent_research():
     """Demonstrate a research agent using the hierarchical memory architecture."""
     print("\n=== HIERARCHICAL SINGLE AGENT RESEARCH EXAMPLE ===\n")
     
-    # Create a focused memory with domain-specific context
-    # Using our enhanced hierarchical memory
-    memory = HierarchicalMemory(
-        name="research_memory",
-        initial_context="You are a specialized research agent focused on quantum computing. "
-                      "Your task is to research the latest advancements and summarize them."
-    )
+    # Create a hierarchical memory with sections for research topics
+    memory = HierarchicalMemory(memory_id="research_memory")
     
-    # Add task instructions with appropriate role and tags
-    memory.add_entry(
+    # Add sections for different aspects of the research
+    memory.add_section("instructions", "Task instructions and objectives")
+    memory.add_section("quantum_supremacy", "Research on quantum supremacy")
+    memory.add_section("error_correction", "Research on quantum error correction")
+    memory.add_section("summary", "Final research summary")
+    
+    # Add system instructions
+    instruction_id = memory.add(
+        "You are a specialized research agent focused on quantum computing. "
+        "Your task is to research the latest advancements and summarize them.",
+        role="system",
+        tags=["instruction"]
+    )
+    memory.assign_to_section(instruction_id, "instructions")
+    
+    # Add task instructions
+    task_id = memory.add(
         "Research the latest advancements in quantum computing focusing on quantum supremacy "
         "and error correction. Create a comprehensive summary.",
-        "user",
-        ["research", "quantum_computing"]
+        role="user",
+        tags=["research", "quantum_computing"]
     )
+    memory.assign_to_section(task_id, "instructions")
     
-    # Initialize tools - using the enhanced DirectoryAwareFileWriter
+    # Initialize tools
     tools = ToolCollection(
         WebSearchTool(),
         ScraperTool(),
@@ -171,15 +82,48 @@ async def demonstrate_single_agent_research():
         name="QuantumResearcher"  # Pass as keyword argument at the end
     )
     
-    # Adapt the agent to use our hierarchical memory
+    # Create a memory adapter to integrate with the agent
+    # The adapter bridges between our HierarchicalMemory and the agent's memory interface
+    # In a real implementation, we would modify the agent to directly support our memory classes
+    
+    # Define functions to handle memory operations
+    def get_memory_context():
+        # Get context from the instructions section for the initial prompt
+        return memory.get_context(sections=["instructions"])
+    
+    def save_memory_interaction(user_input, agent_output):
+        # Save user query
+        user_id = memory.add(user_input, role="user")
+        
+        # Determine which section to save in based on content
+        if "quantum supremacy" in user_input.lower():
+            memory.assign_to_section(user_id, "quantum_supremacy")
+        elif "error correction" in user_input.lower():
+            memory.assign_to_section(user_id, "error_correction")
+        else:
+            # Default to instructions section
+            memory.assign_to_section(user_id, "instructions")
+            
+        # Save agent response
+        agent_id = memory.add(agent_output, role="assistant")
+        
+        # Determine which section to save in based on content
+        if "quantum supremacy" in agent_output.lower():
+            memory.assign_to_section(agent_id, "quantum_supremacy")
+        elif "error correction" in agent_output.lower():
+            memory.assign_to_section(agent_id, "error_correction")
+        else:
+            # If it's a summary, save in summary section
+            if "summary" in user_input.lower() or len(agent_output) > 500:
+                memory.assign_to_section(agent_id, "summary")
+            else:
+                # Default to same section as user input
+                memory.assign_to_section(agent_id, "instructions")
+    
+    # Set up adapter for the agent
     memory_adapter = InMemoryMemory()
-    memory_adapter.get_context = lambda: memory.get_context(
-        roles=["system", "user", "assistant"],
-        newest_first=False
-    )
-    memory_adapter.save_interaction = lambda user_input, agent_output: memory.save_interaction(
-        user_input, agent_output
-    )
+    memory_adapter.get_context = get_memory_context
+    memory_adapter.save_interaction = save_memory_interaction
     
     # Replace the agent's memory with our adapter
     research_agent.memory = memory_adapter
@@ -192,12 +136,13 @@ async def demonstrate_single_agent_research():
             "and error correction. Create a comprehensive summary."
         )
         
-        # Save the result back to our memory
-        memory.add_entry(
+        # Save the final result to the summary section
+        summary_id = memory.add(
             result,
-            "assistant", 
-            ["research_result", "quantum_computing"]
+            role="assistant", 
+            tags=["research_result", "quantum_computing", "summary"]
         )
+        memory.assign_to_section(summary_id, "summary")
         
         # Save the result to a file with timestamp for versioning
         output_path = os.path.join(output_dir, f"quantum_computing_research_{timestamp}.md")
@@ -211,7 +156,20 @@ async def demonstrate_single_agent_research():
         
         print(f"\nResearch completed. Results saved to {output_path}")
         print(f"Memory statistics saved to {stats_path}\n")
-        print(f"Research summary preview:\n{result[:300]}...\n")
+        
+        # Display memory statistics and section contents
+        stats = memory.get_stats()
+        print("Memory Structure:")
+        print(f"  Total items: {stats['total_items']}")
+        print(f"  Sections: {stats['section_count']}")
+        
+        # Show information about each section
+        print("\nSection Details:")
+        for section_name, section_info in stats['sections'].items():
+            print(f"  [{section_name}] - {section_info['item_count']} items - {section_info['description']}")
+        
+        # Show the research summary preview
+        print(f"\nResearch summary preview:\n{result[:300]}...\n")
         
         return memory, result
         
