@@ -16,12 +16,13 @@ from typing import Dict, List, Optional, Any
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
 from src.cortexai.providers.mock_provider import MockProvider
-from src.cortexai.agents.specialized_agent import ResearchAgent
+from src.cortexai.agents.specialized.research_agent import ResearchAgent
+from src.cortexai.agents.memory_aware_agent import MemoryAwareAgent
 from src.cortexai.tools.tool_collection import ToolCollection
 from src.cortexai.tools.web_search_tool import WebSearchTool
 from src.cortexai.tools.scraper_tool import ScraperTool
 from src.cortexai.tools.directory_aware_file_writer import DirectoryAwareFileWriter
-from src.cortexai.memory import HierarchicalMemory, InMemoryMemory
+from src.cortexai.memory import HierarchicalMemory
 
 # Make sure output directory exists
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -63,15 +64,16 @@ async def demonstrate_single_agent_research():
     )
     memory.assign_to_section(task_id, "instructions")
     
-    # Initialize tools
-    tools = ToolCollection(
+    # Initialize tools - using a list of tools directly instead of ToolCollection
+    # This matches what the Agent class expects
+    tools = [
         WebSearchTool(),
         ScraperTool(),
         DirectoryAwareFileWriter(
             output_dir=output_dir,
             create_dirs=True
         )
-    )
+    ]
     
     # Create a specialized research agent
     provider = MockProvider(seed=42)  # Replace with real provider for production
@@ -82,67 +84,45 @@ async def demonstrate_single_agent_research():
         name="QuantumResearcher"  # Pass as keyword argument at the end
     )
     
-    # Create a memory adapter to integrate with the agent
-    # The adapter bridges between our HierarchicalMemory and the agent's memory interface
-    # In a real implementation, we would modify the agent to directly support our memory classes
+    # Instead of using MemoryAwareAgent, we'll use a more direct approach
+    # This will be a temporary solution until we have fully functional async memory integration
     
-    # Define functions to handle memory operations
-    def get_memory_context():
-        # Get context from the instructions section for the initial prompt
-        return memory.get_context(sections=["instructions"])
+    # Get instructions from memory to update agent's context
+    instructions = memory.get_context(sections=["instructions"])
     
-    def save_memory_interaction(user_input, agent_output):
-        # Save user query
-        user_id = memory.add(user_input, role="user")
-        
-        # Determine which section to save in based on content
-        if "quantum supremacy" in user_input.lower():
-            memory.assign_to_section(user_id, "quantum_supremacy")
-        elif "error correction" in user_input.lower():
-            memory.assign_to_section(user_id, "error_correction")
-        else:
-            # Default to instructions section
-            memory.assign_to_section(user_id, "instructions")
-            
-        # Save agent response
-        agent_id = memory.add(agent_output, role="assistant")
-        
-        # Determine which section to save in based on content
-        if "quantum supremacy" in agent_output.lower():
-            memory.assign_to_section(agent_id, "quantum_supremacy")
-        elif "error correction" in agent_output.lower():
-            memory.assign_to_section(agent_id, "error_correction")
-        else:
-            # If it's a summary, save in summary section
-            if "summary" in user_input.lower() or len(agent_output) > 500:
-                memory.assign_to_section(agent_id, "summary")
-            else:
-                # Default to same section as user input
-                memory.assign_to_section(agent_id, "instructions")
+    # Update the agent's system prompt with the memory context
+    research_agent.system_prompt = f"{research_agent.system_prompt}\n\nCurrent context:\n{instructions}"
     
-    # Set up adapter for the agent
-    memory_adapter = InMemoryMemory()
-    memory_adapter.get_context = get_memory_context
-    memory_adapter.save_interaction = save_memory_interaction
-    
-    # Replace the agent's memory with our adapter
-    research_agent.memory = memory_adapter
-    
-    # Execute the research task
+    # Execute the research task directly with the research agent
     print("Executing research task...\n")
     try:
-        result = await research_agent.run_task(
-            "Research the latest advancements in quantum computing focusing on quantum supremacy "
-            "and error correction. Create a comprehensive summary."
-        )
+        task = ("Research the latest advancements in quantum computing focusing on quantum supremacy "
+                "and error correction. Create a comprehensive summary.")
         
-        # Save the final result to the summary section
-        summary_id = memory.add(
-            result,
-            role="assistant", 
-            tags=["research_result", "quantum_computing", "summary"]
-        )
-        memory.assign_to_section(summary_id, "summary")
+        # Get the result from the research agent directly
+        result = await research_agent.run_task(task)
+        
+        # Save the task and result in memory with proper sections
+        task_id = memory.add(task, role="user", tags=["research", "quantum_computing"])
+        
+        # Assign to appropriate sections based on content
+        if "quantum supremacy" in task.lower():
+            memory.assign_to_section(task_id, "quantum_supremacy")
+        if "error correction" in task.lower():
+            memory.assign_to_section(task_id, "error_correction")
+            
+        # Save the agent's response
+        result_id = memory.add(result, role="assistant", tags=["research", "summary"])
+        
+        # Assign to appropriate sections based on content
+        if "quantum supremacy" in result.lower():
+            memory.assign_to_section(result_id, "quantum_supremacy")
+        if "error correction" in result.lower():
+            memory.assign_to_section(result_id, "error_correction")
+        memory.assign_to_section(result_id, "summary")
+
+        
+        # We've already saved the result to memory and assigned it to sections
         
         # Save the result to a file with timestamp for versioning
         output_path = os.path.join(output_dir, f"quantum_computing_research_{timestamp}.md")

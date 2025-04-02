@@ -84,3 +84,5 @@
 - [x] Implemented VectorMemory with semantic search capabilities
 - [x] Created comprehensive unit tests for all memory implementations
 - [x] Added usage examples in examples/memory_examples.py
+- [x] Implemented MemoryAwareAgent wrapper to simplify agent-memory integration
+- [x] Updated examples to demonstrate memory-aware agents

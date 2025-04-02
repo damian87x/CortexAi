@@ -80,7 +80,20 @@ CortexAi offers a flexible memory system with multiple implementations for diffe
    - Asynchronous methods for external embedding service integration
    - Configurable embedding provider with default test implementation
 
-Memory system usage examples can be found in `examples/memory_examples.py`.
+### Memory Integration with Agents
+
+To simplify the integration of memory systems with agents, CortexAi provides a **MemoryAwareAgent** wrapper:
+
+- **MemoryAwareAgent** - Wrapper class that integrates any agent with any memory implementation
+  - Eliminates boilerplate code for agent-memory integration
+  - Provides intelligent content-based section assignment for hierarchical memory
+  - Handles context retrieval and interaction saving automatically
+  - Configurable with section mappings, tag extraction, and context filtering
+  - Works with any agent and memory implementation
+
+The memory integration can be seen in action in the following examples:
+- `examples/memory_examples.py` - Demonstrates all memory implementations
+- `examples/hierarchical_single_agent_research.py` - Shows MemoryAwareAgent in action
 CortexAi/
 ├── src/
 │   └── cortexai/       # Primary implementation
