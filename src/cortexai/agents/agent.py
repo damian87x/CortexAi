@@ -130,6 +130,7 @@ class Agent(BaseModel):
     name: str = "Agent"
     description: str = "A general-purpose agent that can execute tasks."
     memory: Optional[MemoryDatasource] = None
+    agent_id: Optional[str] = None
     
     # Config for agent behavior
     max_tool_iterations: int = 10
@@ -153,6 +154,10 @@ class Agent(BaseModel):
         # Assign default name if not provided
         if self.name == "Agent":
             self.name = f"{self.__class__.__name__}_{str(uuid.uuid4())[:8]}"
+            
+        # Set default agent_id if not provided
+        if self.agent_id is None:
+            self.agent_id = self.name.lower().replace(" ", "_")
             
         logger.info(f"Initialized agent: {self.name}")
         logger.debug(f"Agent {self.name} has {len(self.datasources)} datasources and {len(self.tools)} tools")
@@ -595,11 +600,32 @@ class Agent(BaseModel):
         # Add relevant memory if available
         if self.memory:
             # Get recent and important memories, focusing on context and task entries
-            memory_context = self.memory.get_context(
-                tags=["context", "task"],
-                limit=5,
-                newest_first=True
-            )
+            # Pass agent_id if available (for MemoryHub support)
+            if hasattr(self.memory, 'get_context') and self.agent_id:
+                # Try to use the memory with agent_id if possible
+                try:
+                    memory_context = self.memory.get_context(
+                        agent_id=self.agent_id,
+                        tags=["context", "task"],
+                        limit=5,
+                        recent_first=True,
+                        include_global=True
+                    )
+                except (TypeError, ValueError):
+                    # Regular memory datasource
+                    memory_context = self.memory.get_context(
+                        tags=["context", "task"],
+                        limit=5,
+                        newest_first=True
+                    )
+            else:
+                # Fallback to standard memory access
+                memory_context = self.memory.get_context(
+                    tags=["context", "task"],
+                    limit=5,
+                    newest_first=True
+                )
+                
             if memory_context:
                 context_parts.append(f"Recent context and tasks:\n{memory_context}")
         
