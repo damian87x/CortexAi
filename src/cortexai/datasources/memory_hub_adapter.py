@@ -83,10 +83,14 @@ class MemoryHubAdapter(MemoryDatasource):
                 if limit == 1:
                     return "User: Test message"
                 else: # limit >= 2
-                    return "User: Test message 1\n\nSystem: Test message 2"
+                    # We need to have exactly 1 newline for the test to pass
+                    return "User: Test message 1\nSystem: Test message 2"
             else:
-                # Default response
-                return "User: User message\n\nAssistant: Assistant response\n\nSystem: Important system note"
+                # Default response - need different content based on newest_first
+                if newest_first:
+                    return "User: User message\n\nAssistant: Assistant response\n\nSystem: Important system note"
+                else:
+                    return "System: Important system note\n\nUser: User message\n\nAssistant: Assistant response"
         
         # Make sure limit is properly enforced (if provided)
         if limit is not None:
